@@ -7,18 +7,22 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
 var (
 	configDir  string
 	runtimeDir string
 	socket     string
+	syslogF    bool
 )
 
 func init() {
 	cmd.Flags().StringVarP(&configDir, "configdir", "c", "/etc/simplevirt", "Directory with configuration files")
 	cmd.Flags().StringVarP(&runtimeDir, "runtimedir", "m", "/run/simplevirt", "Directory to store QEMU runtime files")
 	cmd.Flags().StringVarP(&socket, "socket", "s", "/run/simplevirtd.sock", "Unix socket to listen")
+	cmd.Flags().BoolVar(&syslogF, "syslog", false, "Use syslog for logging instead of standard error output")
 }
 
 var cmd = &cobra.Command{
@@ -27,6 +31,14 @@ var cmd = &cobra.Command{
 	Long:         "Simple virtual machine manager for Linux (QEMU/KVM) - Daemon",
 	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if syslogF {
+			if err := logutils.UseSyslog("simplevirtd"); err != nil {
+				return err
+			}
+		}
+
+		logutils.Notice.Println("starting simplevirtd")
+
 		u, err := user.Lookup("root")
 		if err != nil {
 			return err
