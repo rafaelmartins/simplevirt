@@ -1,7 +1,6 @@
 package simplevirtd
 
 import (
-	"fmt"
 	"net"
 	"net/rpc"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/rafaelmartins/simplevirt/pkg/ipc"
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 	"github.com/rafaelmartins/simplevirt/pkg/qemu"
 )
 
@@ -48,7 +48,7 @@ func listenAndServe() error {
 
 	go func(l net.Listener, c chan os.Signal) {
 		sig := <-c
-		fmt.Printf("simplevirtd: caught signal %q: shutting down virtual machines.\n", sig)
+		logutils.Notice.Printf("caught signal %q: shutting down virtual machines.\n", sig)
 		exiting = true
 		qemu.Cleanup()
 		l.Close()

@@ -1,13 +1,14 @@
 package simplevirtd
 
 import (
-	"fmt"
+	"log"
 	"os"
 	"os/user"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rafaelmartins/simplevirt"
 	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
@@ -29,52 +30,51 @@ var cmd = &cobra.Command{
 	Use:          "simplevirtd",
 	Short:        "Simple virtual machine manager for Linux (QEMU/KVM) - Daemon",
 	Long:         "Simple virtual machine manager for Linux (QEMU/KVM) - Daemon",
+	Version:      simplevirt.Version,
 	SilenceUsage: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	Run: func(cmd *cobra.Command, args []string) {
 		if syslogF {
 			if err := logutils.UseSyslog("simplevirtd"); err != nil {
-				return err
+				log.Fatal(err)
 			}
 		}
 
-		logutils.Notice.Println("starting simplevirtd")
+		logutils.Notice.Printf("starting simplevirtd %s\n", simplevirt.Version)
 
 		u, err := user.Lookup("root")
 		if err != nil {
-			return err
+			logutils.Error.Fatal(err)
 		}
 
 		uid, err := strconv.Atoi(u.Uid)
 		if err != nil {
-			return err
+			logutils.Error.Fatal(err)
 		}
 
 		if os.Geteuid() != uid {
-			return fmt.Errorf("simplevirtd should be run as root")
+			logutils.Error.Fatal("simplevirtd should be run as root")
 		}
 
 		if socket == "" {
-			return fmt.Errorf("empty Unix socket is invalid")
+			logutils.Error.Fatal("empty Unix socket is invalid")
 		}
 
 		if runtimeDir == "" {
-			return fmt.Errorf("empty runtime directory is invalid")
+			logutils.Error.Fatal("empty runtime directory is invalid")
 		}
 		if _, err := os.Stat(runtimeDir); err != nil {
 			if os.IsNotExist(err) {
 				if err := os.MkdirAll(runtimeDir, 0777); err != nil {
-					return err
+					logutils.Error.Fatal(err)
 				}
 			} else {
-				return err
+				logutils.Error.Fatal(err)
 			}
 		}
 
 		if err := listenAndServe(); err != nil {
-			return err
+			logutils.Error.Fatal(err)
 		}
-
-		return nil
 	},
 }
 
