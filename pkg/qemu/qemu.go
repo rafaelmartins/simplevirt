@@ -1,6 +1,7 @@
 package qemu
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -13,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 	"github.com/rafaelmartins/simplevirt/pkg/netdev"
 )
 
@@ -30,6 +32,15 @@ type instance struct {
 	vm      *virtualmachine
 	proc    *os.Process
 	devices []*device
+}
+
+type runtimeDevice struct {
+	Bridge string `json:"bridge"`
+	IFace  string `json:"iface"`
+}
+
+type runtimeData struct {
+	Devices []*runtimeDevice `json:"devices"`
 }
 
 func cleanupDevices(devices []*device) error {
@@ -115,6 +126,8 @@ func Start(configDir string, runtimeDir string, name string) error {
 	inst.vm.monitor = filepath.Join(runtimeDir, fmt.Sprintf("%s.sock", name))
 	inst.vm.pidfile = filepath.Join(runtimeDir, fmt.Sprintf("%s.pid", name))
 
+	rd := runtimeData{}
+
 	for i, nic := range inst.vm.NICs {
 		if nic.Bridge == "" {
 			continue
@@ -130,6 +143,7 @@ func Start(configDir string, runtimeDir string, name string) error {
 
 		inst.devices = append(inst.devices, &device{bridge: nic.Bridge, iface: tap})
 		inst.vm.NICs[i].device = tap.Name
+		rd.Devices = append(rd.Devices, &runtimeDevice{Bridge: nic.Bridge, IFace: tap.Name})
 	}
 
 	args, err := buildCmdVirtualMachine(vm)
@@ -163,8 +177,38 @@ func Start(configDir string, runtimeDir string, name string) error {
 	inst.proc = proc
 
 	registryMutex.Lock()
+	defer registryMutex.Unlock()
 	registry[name] = inst
-	registryMutex.Unlock()
+	rdJson, err := json.Marshal(rd)
+	if err != nil {
+		logutils.Warning.Println("qemu: failed to serialize virtual machine devices:", err)
+		return nil
+	}
+	if err := ioutil.WriteFile(filepath.Join(runtimeDir, fmt.Sprintf("%s.json", name)), rdJson, 0600); err != nil {
+		logutils.Warning.Println("qemu: failed to store virtual machine devices in disk:", err)
+	}
+
+	return nil
+}
+
+func AutoStart(configDir string, runtimeDir string) error {
+	vms, err := listConfigs(configDir)
+	if err != nil {
+		return err
+	}
+
+	for _, vmName := range vms {
+		vm, err := parseConfig(configDir, vmName)
+		if err != nil {
+			return err
+		}
+
+		if vm.AutoStart {
+			if err := Start(configDir, runtimeDir, vmName); err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }

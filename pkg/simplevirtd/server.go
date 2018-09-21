@@ -17,6 +17,10 @@ import (
 func listenAndServe() error {
 	ipc.RegisterHandlers(configDir, runtimeDir)
 
+	if err := qemu.AutoStart(configDir, runtimeDir); err != nil {
+		return err
+	}
+
 	gr, err := user.LookupGroup("simplevirt")
 	if err != nil {
 		return err
@@ -42,16 +46,22 @@ func listenAndServe() error {
 	}
 
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
+	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGHUP)
 
 	exiting := false
 
 	go func(l net.Listener, c chan os.Signal) {
 		sig := <-c
-		logutils.Notice.Printf("caught signal %q: shutting down virtual machines.\n", sig)
+		if sig == syscall.SIGHUP {
+			logutils.Notice.Printf("caught signal %q: shutting down.\n", sig)
+		} else {
+			logutils.Notice.Printf("caught signal %q: shutting down virtual machines.\n", sig)
+			qemu.Cleanup()
+		}
+
 		exiting = true
-		qemu.Cleanup()
 		l.Close()
+
 		os.Exit(0)
 	}(listener, sigChan)
 

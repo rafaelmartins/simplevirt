@@ -19,7 +19,7 @@ var (
 	driveFormatChoices    = []string{"raw"}
 
 	reRAM    = regexp.MustCompile(`^[0-9]+(\.[0-9]+)?[MG]?$`)
-	reConfig = regexp.MustCompile(`^(.+)\.ya?ml$`)
+	reConfig = regexp.MustCompile(`^([^\.].*)\.ya?ml$`)
 )
 
 type drive struct {
@@ -43,6 +43,8 @@ type virtualmachine struct {
 	name    string
 	monitor string
 	pidfile string
+
+	AutoStart bool `yaml:"auto_start"`
 
 	SystemTarget string `yaml:"system_target"`
 	MachineType  string `yaml:"machine_type"`
