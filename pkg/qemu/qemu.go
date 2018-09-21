@@ -1,7 +1,6 @@
 package qemu
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -34,15 +33,6 @@ type instance struct {
 	devices []*device
 }
 
-type runtimeDevice struct {
-	Bridge string `json:"bridge"`
-	IFace  string `json:"iface"`
-}
-
-type runtimeData struct {
-	Devices []*runtimeDevice `json:"devices"`
-}
-
 func cleanupDevices(devices []*device) error {
 	errs := []string{}
 	for _, device := range devices {
@@ -54,7 +44,7 @@ func cleanupDevices(devices []*device) error {
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "\n"))
+		return fmt.Errorf("qemu:\n%s", strings.Join(errs, "\n"))
 	}
 	return nil
 }
@@ -80,8 +70,8 @@ func cleanupInstance(name string, inst instance) error {
 	}
 
 	registryMutex.Lock()
+	defer registryMutex.Unlock()
 	delete(registry, name)
-	registryMutex.Unlock()
 
 	return nil
 }
@@ -126,8 +116,6 @@ func Start(configDir string, runtimeDir string, name string) error {
 	inst.vm.monitor = filepath.Join(runtimeDir, fmt.Sprintf("%s.sock", name))
 	inst.vm.pidfile = filepath.Join(runtimeDir, fmt.Sprintf("%s.pid", name))
 
-	rd := runtimeData{}
-
 	for i, nic := range inst.vm.NICs {
 		if nic.Bridge == "" {
 			continue
@@ -143,7 +131,6 @@ func Start(configDir string, runtimeDir string, name string) error {
 
 		inst.devices = append(inst.devices, &device{bridge: nic.Bridge, iface: tap})
 		inst.vm.NICs[i].device = tap.Name
-		rd.Devices = append(rd.Devices, &runtimeDevice{Bridge: nic.Bridge, IFace: tap.Name})
 	}
 
 	args, err := buildCmdVirtualMachine(vm)
@@ -179,14 +166,6 @@ func Start(configDir string, runtimeDir string, name string) error {
 	registryMutex.Lock()
 	defer registryMutex.Unlock()
 	registry[name] = inst
-	rdJson, err := json.Marshal(rd)
-	if err != nil {
-		logutils.Warning.Println("qemu: failed to serialize virtual machine devices:", err)
-		return nil
-	}
-	if err := ioutil.WriteFile(filepath.Join(runtimeDir, fmt.Sprintf("%s.json", name)), rdJson, 0600); err != nil {
-		logutils.Warning.Println("qemu: failed to store virtual machine devices in disk:", err)
-	}
 
 	return nil
 }
@@ -236,6 +215,8 @@ func List(configDir string) ([]string, error) {
 
 func Cleanup() {
 	for name, inst := range registry {
-		cleanupInstance(name, inst)
+		if err := cleanupInstance(name, inst); err != nil {
+			logutils.Error.Printf("qemu: failed to cleanup virtual machine: %s", err)
+		}
 	}
 }
