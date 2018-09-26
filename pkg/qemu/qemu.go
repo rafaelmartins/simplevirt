@@ -33,18 +33,19 @@ type instance struct {
 	devices []*device
 }
 
-func cleanupDevices(devices []*device) error {
+func cleanupDevices(name string, devices []*device) error {
 	errs := []string{}
 	for _, device := range devices {
+		logutils.Notice.Printf("qemu: %s:   cleaning up network device: %s (bridge: %s)", name, device.iface.Name, device.bridge)
 		if err := netdev.RemoveDevFromBridge(device.bridge, device.iface); err != nil {
-			errs = append(errs, fmt.Sprintf("%s - %s: %s", device.iface.Name, device.bridge, err.Error()))
+			errs = append(errs, fmt.Sprintf("qemu: %s: %s - %s: %s", name, device.iface.Name, device.bridge, err.Error()))
 		}
 		if err := netdev.DestroyQtap(device.iface); err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %s", device.iface.Name, err.Error()))
+			errs = append(errs, fmt.Sprintf("qemu: %s: %s: %s", name, device.iface.Name, err.Error()))
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("qemu:\n%s", strings.Join(errs, "\n"))
+		return fmt.Errorf("%s", strings.Join(errs, "\n"))
 	}
 	return nil
 }
@@ -65,7 +66,7 @@ func cleanupInstance(name string, inst instance) error {
 		time.Sleep(time.Second)
 	}
 
-	if err := cleanupDevices(inst.devices); err != nil {
+	if err := cleanupDevices(name, inst.devices); err != nil {
 		return err
 	}
 
@@ -99,13 +100,15 @@ func IsRunning(name string) bool {
 }
 
 func Start(configDir string, runtimeDir string, name string) error {
+	logutils.Notice.Printf("qemu: %s: starting", name)
+
 	if ok := IsRunning(name); ok {
-		return fmt.Errorf("qemu: virtual machine is already running: %s", name)
+		return logutils.LogError(fmt.Errorf("qemu: %s: already running", name))
 	}
 
 	vm, err := parseConfig(configDir, name)
 	if err != nil {
-		return err
+		return logutils.LogError(err)
 	}
 
 	inst := instance{
@@ -117,16 +120,21 @@ func Start(configDir string, runtimeDir string, name string) error {
 	inst.vm.pidfile = filepath.Join(runtimeDir, fmt.Sprintf("%s.pid", name))
 
 	for i, nic := range inst.vm.NICs {
+		logutils.Notice.Printf("qemu: %s:   creating network device (bridge: %s)", name, nic.Bridge)
+
 		if nic.Bridge == "" {
 			continue
 		}
+
 		tap, err := netdev.CreateQtap(inst.vm.RunAs)
 		if err != nil {
-			return err
+			return logutils.LogError(err)
 		}
+		logutils.Notice.Printf("qemu: %s:     device: %s", name, tap.Name)
+
 		if err := netdev.AddDevToBridge(nic.Bridge, tap); err != nil {
 			netdev.DestroyQtap(tap)
-			return err
+			return logutils.LogError(err)
 		}
 
 		inst.devices = append(inst.devices, &device{bridge: nic.Bridge, iface: tap})
@@ -135,30 +143,30 @@ func Start(configDir string, runtimeDir string, name string) error {
 
 	args, err := buildCmdVirtualMachine(vm)
 	if err != nil {
-		return err
+		return logutils.LogError(err)
 	}
 
 	cmd := exec.Command(fmt.Sprintf("qemu-system-%s", inst.vm.SystemTarget), args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		cleanupDevices(inst.devices)
-		return fmt.Errorf("qemu: failed to start virtual machine: %s\n\n%s", err, string(out))
+		cleanupDevices(name, inst.devices)
+		return logutils.LogError(fmt.Errorf("qemu: %s: failed to start: %s\n\n%s", name, err, string(out)))
 	}
 
 	pidS, err := ioutil.ReadFile(inst.vm.pidfile)
 	if err != nil {
-		cleanupDevices(inst.devices)
-		return err
+		cleanupDevices(name, inst.devices)
+		return logutils.LogError(err)
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(pidS)))
 	if err != nil {
-		cleanupDevices(inst.devices)
-		return err
+		cleanupDevices(name, inst.devices)
+		return logutils.LogError(err)
 	}
 
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		cleanupDevices(inst.devices)
-		return err
+		cleanupDevices(name, inst.devices)
+		return logutils.LogError(err)
 	}
 
 	inst.proc = proc
@@ -171,21 +179,21 @@ func Start(configDir string, runtimeDir string, name string) error {
 }
 
 func AutoStart(configDir string, runtimeDir string) error {
+	logutils.Notice.Printf("qemu: starting virtual machines automatically")
+
 	vms, err := listConfigs(configDir)
 	if err != nil {
-		return err
+		return logutils.LogError(err)
 	}
 
 	for _, vmName := range vms {
 		vm, err := parseConfig(configDir, vmName)
 		if err != nil {
-			return err
+			return logutils.LogError(err)
 		}
 
 		if vm.AutoStart {
-			if err := Start(configDir, runtimeDir, vmName); err != nil {
-				return err
-			}
+			Start(configDir, runtimeDir, vmName)
 		}
 	}
 
@@ -193,30 +201,32 @@ func AutoStart(configDir string, runtimeDir string) error {
 }
 
 func Shutdown(name string) error {
+	logutils.Notice.Printf("qemu: %s: shutting down", name)
+
 	if ok := IsRunning(name); !ok {
-		return fmt.Errorf("qemu: virtual machine is not running: %s", name)
+		return logutils.LogError(fmt.Errorf("qemu: %s: not running", name))
 	}
 
 	inst, ok := registry[name]
 	if !ok {
-		return fmt.Errorf("qemu: virtual machine is not running: %s", name)
+		return logutils.LogError(fmt.Errorf("qemu: %s: not running", name))
 	}
 
+	logutils.Notice.Printf("qemu: %s:   with %ds timeout", name, inst.vm.ShutdownTimeout)
 	if err := cleanupInstance(name, inst); err != nil {
-		return err
+		return logutils.LogError(err)
 	}
 
 	return nil
 }
 
 func List(configDir string) ([]string, error) {
-	return listConfigs(configDir)
+	conf, err := listConfigs(configDir)
+	return conf, logutils.LogError(err)
 }
 
 func Cleanup() {
-	for name, inst := range registry {
-		if err := cleanupInstance(name, inst); err != nil {
-			logutils.Error.Printf("qemu: failed to cleanup virtual machine: %s", err)
-		}
+	for name, _ := range registry {
+		Shutdown(name)
 	}
 }

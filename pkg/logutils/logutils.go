@@ -32,3 +32,17 @@ func UseSyslog(tag string) error {
 	}
 	return nil
 }
+
+func LogCrit(err error) error {
+	if err != nil {
+		Crit.Println(err)
+	}
+	return err
+}
+
+func LogError(err error) error {
+	if err != nil {
+		Error.Println(err)
+	}
+	return err
+}
