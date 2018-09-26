@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -222,7 +223,28 @@ func Shutdown(name string) error {
 
 func List(configDir string) ([]string, error) {
 	conf, err := listConfigs(configDir)
-	return conf, logutils.LogError(err)
+	if err != nil {
+		return nil, logutils.LogError(err)
+	}
+
+	rv := append([]string{}, conf...)
+
+	for name, _ := range registry {
+		found := false
+		for _, confName := range conf {
+			if confName == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			rv = append(rv, name)
+		}
+	}
+
+	sort.Strings(rv)
+
+	return rv, nil
 }
 
 func Cleanup() {
