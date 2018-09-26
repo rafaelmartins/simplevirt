@@ -17,6 +17,7 @@ var (
 	runtimeDir string
 	socket     string
 	syslogF    bool
+	logLevel   string
 )
 
 func init() {
@@ -24,6 +25,7 @@ func init() {
 	cmd.Flags().StringVarP(&runtimeDir, "runtimedir", "m", "/run/simplevirt", "Directory to store QEMU runtime files")
 	cmd.Flags().StringVarP(&socket, "socket", "s", "/run/simplevirtd.sock", "Unix socket to listen")
 	cmd.Flags().BoolVar(&syslogF, "syslog", false, "Use syslog for logging instead of standard error output")
+	cmd.Flags().StringVarP(&logLevel, "loglevel", "l", "WARNING", "Log level for non-syslog logging (CRITICAL, ERROR, WARNING, NOTICE)")
 }
 
 var cmd = &cobra.Command{
@@ -35,6 +37,13 @@ var cmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if syslogF {
 			if err := logutils.UseSyslog("simplevirtd"); err != nil {
+				log.Fatal(err)
+			}
+		} else {
+			if logLevel == "" {
+				log.Fatal("empty log level is invalid")
+			}
+			if err := logutils.SetLevel(logLevel); err != nil {
 				log.Fatal(err)
 			}
 		}

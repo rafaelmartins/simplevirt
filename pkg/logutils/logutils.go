@@ -1,9 +1,12 @@
 package logutils
 
 import (
+	"fmt"
+	"io/ioutil"
 	"log"
 	"log/syslog"
 	"os"
+	"strings"
 )
 
 var (
@@ -30,6 +33,29 @@ func UseSyslog(tag string) error {
 		}
 		logger.SetOutput(writer)
 	}
+	return nil
+}
+
+func SetLevel(level string) error {
+	if level == "" {
+		return nil
+	}
+
+	switch l := strings.ToLower(level); l {
+	case "critical":
+		Error.SetOutput(ioutil.Discard)
+		Warning.SetOutput(ioutil.Discard)
+		Notice.SetOutput(ioutil.Discard)
+	case "error":
+		Warning.SetOutput(ioutil.Discard)
+		Notice.SetOutput(ioutil.Discard)
+	case "warning":
+		Notice.SetOutput(ioutil.Discard)
+	case "notice":
+	default:
+		return fmt.Errorf("invalid log level: %s", level)
+	}
+
 	return nil
 }
 
