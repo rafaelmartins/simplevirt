@@ -353,7 +353,7 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 
 	val, err = buildCmdVirtualMachine(&virtualmachine{
 		name:    "bola",
-		monitor: "/run/bola.sock",
+		qmp:     "/run/bola.sock",
 		pidfile: "/run/bola.pid",
 		Drives: []*drive{
 			&drive{File: "/foo.img"},
@@ -376,7 +376,7 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 	AssertNonError(t, err)
 	AssertEqual(t, val, []string{
 		"-name", "bola",
-		"-monitor", "unix:/run/bola.sock,server,nowait",
+		"-qmp", "unix:/run/bola.sock,server,nowait",
 		"-daemonize",
 		"-pidfile", "/run/bola.pid",
 		"-M", "pc",

@@ -41,7 +41,7 @@ type nic struct {
 
 type virtualmachine struct {
 	name    string
-	monitor string
+	qmp     string
 	pidfile string
 
 	AutoStart bool `yaml:"auto_start"`
@@ -205,8 +205,8 @@ func buildCmdVirtualMachine(vm *virtualmachine) ([]string, error) {
 		rv = append(rv, "-name", vm.name)
 	}
 
-	if vm.monitor != "" {
-		rv = append(rv, "-monitor", fmt.Sprintf("unix:%s,server,nowait", vm.monitor))
+	if vm.qmp != "" {
+		rv = append(rv, "-qmp", fmt.Sprintf("unix:%s,server,nowait", vm.qmp))
 	}
 
 	if vm.pidfile != "" {

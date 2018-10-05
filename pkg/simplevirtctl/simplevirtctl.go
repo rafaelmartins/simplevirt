@@ -65,13 +65,51 @@ var startCmd = &cobra.Command{
 	},
 }
 
+var restartCmd = &cobra.Command{
+	Use:   "restart NAME",
+	Short: "Restarts a virtual machine",
+	Long:  "This command tries to gracefully restart a virtual machine, if running.",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		rv, err := client.Handler.RestartVM(args[0])
+		if err != nil {
+			return err
+		}
+
+		if rv != 0 {
+			os.Exit(rv)
+		}
+
+		return nil
+	},
+}
+
 var shutdownCmd = &cobra.Command{
 	Use:   "shutdown NAME",
 	Short: "Shutdown a virtual machine",
-	Long:  "This command shutdown a virtual machine, if running.",
+	Long:  "This command tries to gracefully shutdown a virtual machine, if running.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		rv, err := client.Handler.ShutdownVM(args[0])
+		if err != nil {
+			return err
+		}
+
+		if rv != 0 {
+			os.Exit(rv)
+		}
+
+		return nil
+	},
+}
+
+var resetCmd = &cobra.Command{
+	Use:   "reset NAME",
+	Short: "Hard-resets a virtual machine",
+	Long:  "This command hard-resets a virtual machine, if running.",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		rv, err := client.Handler.ResetVM(args[0])
 		if err != nil {
 			return err
 		}
@@ -121,7 +159,9 @@ var statusCmd = &cobra.Command{
 func Execute() {
 	rootCmd.AddCommand(
 		startCmd,
+		restartCmd,
 		shutdownCmd,
+		resetCmd,
 		statusCmd,
 	)
 	rootCmd.Execute()

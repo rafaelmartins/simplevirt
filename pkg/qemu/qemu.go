@@ -52,6 +52,10 @@ func cleanupDevices(name string, devices []*device) error {
 }
 
 func cleanupInstance(name string, inst instance) error {
+	if err := qmpPowerdown(inst.vm.qmp); err != nil {
+		return err
+	}
+
 	for i := 0; i < inst.vm.ShutdownTimeout; i++ {
 		if ok := IsRunning(name); !ok {
 			break
@@ -78,26 +82,41 @@ func cleanupInstance(name string, inst instance) error {
 	return nil
 }
 
-func GetStatus(name string) string {
+func getStatus(name string) (string, *qmpQueryStatusResponse) {
 	inst, ok := registry[name]
 	if !ok {
-		return "stopped"
+		return "stopped", nil
 	}
 
 	if inst.proc == nil {
-		return "exited"
+		return "exited", nil
 	}
 
 	if err := inst.proc.Signal(syscall.Signal(0)); err != nil {
-		return "exited"
+		return "exited", nil
 	}
 
-	return "running"
+	st, err := qmpQueryStatus(inst.vm.qmp)
+	if err != nil {
+		return "exited", nil
+	}
+
+	return "", st
+}
+
+func GetStatus(name string) string {
+	val, st := getStatus(name)
+	if st != nil {
+		return st.Status
+	}
+	return val
 }
 
 func IsRunning(name string) bool {
-	status := GetStatus(name)
-	return status == "running"
+	if _, st := getStatus(name); st != nil {
+		return st.Running
+	}
+	return false
 }
 
 func Start(configDir string, runtimeDir string, name string) error {
@@ -117,7 +136,7 @@ func Start(configDir string, runtimeDir string, name string) error {
 	}
 
 	inst.vm.name = name
-	inst.vm.monitor = filepath.Join(runtimeDir, fmt.Sprintf("%s.sock", name))
+	inst.vm.qmp = filepath.Join(runtimeDir, fmt.Sprintf("%s.sock", name))
 	inst.vm.pidfile = filepath.Join(runtimeDir, fmt.Sprintf("%s.pid", name))
 
 	for i, nic := range inst.vm.NICs {
@@ -216,6 +235,25 @@ func Shutdown(name string) error {
 	logutils.Notice.Printf("qemu: %s:   with %ds timeout", name, inst.vm.ShutdownTimeout)
 	if err := cleanupInstance(name, inst); err != nil {
 		return logutils.LogError(err)
+	}
+
+	return nil
+}
+
+func Reset(name string) error {
+	logutils.Notice.Printf("qemu: %s: resetting", name)
+
+	if ok := IsRunning(name); !ok {
+		return logutils.LogError(fmt.Errorf("qemu: %s: not running", name))
+	}
+
+	inst, ok := registry[name]
+	if !ok {
+		return logutils.LogError(fmt.Errorf("qemu: %s: not running", name))
+	}
+
+	if err := qmpReset(inst.vm.qmp); err != nil {
+		return err
 	}
 
 	return nil
