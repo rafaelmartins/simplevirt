@@ -43,10 +43,10 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 					instance.Start()
 
 				case Shutdown:
-					mon.cleanup(instance)
+					instance.Shutdown()
 
 				case Restart:
-					mon.cleanup(instance)
+					instance.Restart()
 
 				case Reset:
 					instance.Reset()
@@ -84,7 +84,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 }
 
 func (m *Monitor) Cleanup() {
-	logutils.Notice.Printf("monitor: requesting cleanup")
+	logutils.Notice.Printf("monitor: cleanup")
 
 	m.exit = true
 	_ = <-m.exitChan
@@ -92,27 +92,7 @@ func (m *Monitor) Cleanup() {
 	for _, instance := range m.instances {
 		// force cleanup
 		instance.op = Start
-		m.cleanup(instance)
-	}
-
-	logutils.Warning.Printf("monitor: cleaned up")
-}
-
-func (m *Monitor) cleanup(instance *Instance) {
-	if instance == nil {
-		return
-	}
-
-	m.instancesMutex.Lock()
-	defer m.instancesMutex.Unlock()
-
-	restarting := instance.op == Restart
-
-	instance.Cleanup(!restarting)
-	if restarting {
-		instance.op = Start
-	} else {
-		delete(m.instances, instance.Name)
+		instance.Shutdown()
 	}
 }
 
@@ -172,7 +152,7 @@ func (m *Monitor) List() ([]string, error) {
 }
 
 func (m *Monitor) Start(name string) error {
-	logutils.Notice.Printf("monitor: %s: requesting start", name)
+	logutils.Notice.Printf("monitor: requesting start: %s", name)
 
 	instance := m.Get(name)
 	if instance != nil {
@@ -191,59 +171,50 @@ func (m *Monitor) Start(name string) error {
 		m.instances[name] = instance
 	}
 
-	logutils.Notice.Printf("monitor: %s: start request completed", name)
-
-	// the monitor will start the virtual machine
 	return nil
 }
 
 func (m *Monitor) Shutdown(name string) error {
-	logutils.Notice.Printf("monitor: %s: requesting shutdown", name)
+	logutils.Notice.Printf("monitor: requesting shutdown: %s", name)
 
 	instance := m.Get(name)
 	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
+		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
 	}
 
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Shutdown
 
-	logutils.Notice.Printf("monitor: %s: shutdown request completed", name)
-
 	return nil
 }
 
 func (m *Monitor) Restart(name string) error {
-	logutils.Notice.Printf("monitor: %s: requesting restart", name)
+	logutils.Notice.Printf("monitor: requesting restart: %s", name)
 
 	instance := m.Get(name)
 	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
+		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
 	}
 
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Restart
 
-	logutils.Notice.Printf("monitor: %s: restart request completed", name)
-
 	return nil
 }
 
 func (m *Monitor) Reset(name string) error {
-	logutils.Notice.Printf("monitor: %s: requesting reset", name)
+	logutils.Notice.Printf("monitor: requesting reset: %s", name)
 
 	instance := m.Get(name)
 	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
+		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
 	}
 
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Reset
-
-	logutils.Warning.Printf("monitor: %s: reset", name)
 
 	return nil
 }

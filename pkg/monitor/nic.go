@@ -23,7 +23,7 @@ func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
 			continue
 		}
 
-		logutils.Notice.Printf("monitor: %s: %s: creating network device", vm, nic.Bridge)
+		logutils.Notice.Printf("monitor: %s: %s: create qtap", vm, nic.Bridge)
 
 		tap, err := netdev.CreateQtap(config.RunAs)
 		if err != nil {
@@ -37,7 +37,7 @@ func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
 			break
 		}
 
-		logutils.Notice.Printf("monitor: %s: %s: %s: created", vm, nic.Bridge, tap.Name)
+		logutils.Notice.Printf("monitor: %s: %s: %s: done", vm, nic.Bridge, tap.Name)
 
 		nics = append(nics, &NIC{ID: tap.Name, Bridge: nic.Bridge, iface: tap})
 		config.NICs[i].SetDevice(tap.Name)
@@ -52,7 +52,7 @@ func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
 }
 
 func (n *NIC) Cleanup(vm string) {
-	logutils.Notice.Printf("monitor: %s: %s: %s: cleaning up network device", vm, n.Bridge, n.ID)
+	logutils.Notice.Printf("monitor: %s: %s: %s: cleanup", vm, n.Bridge, n.ID)
 
 	var err error
 	if err = netdev.RemoveDevFromBridge(n.Bridge, n.iface); err != nil {
@@ -62,7 +62,7 @@ func (n *NIC) Cleanup(vm string) {
 	}
 
 	if err == nil {
-		logutils.Notice.Printf("monitor: %s: %s: %s: cleaned", vm, n.Bridge, n.ID)
+		logutils.Notice.Printf("monitor: %s: %s: %s: cleanup: done", vm, n.Bridge, n.ID)
 	}
 }
 

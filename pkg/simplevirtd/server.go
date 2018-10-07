@@ -48,7 +48,7 @@ func listenAndServe() error {
 	go func(l net.Listener, c chan os.Signal) {
 		sig := <-c
 
-		logutils.Notice.Printf("caught signal %q: shutting down virtual machines.\n", sig)
+		logutils.Error.Printf("caught signal %q: shutting down virtual machines.\n", sig)
 		mon.Cleanup()
 
 		exiting = true

@@ -38,6 +38,10 @@ func newInstance(monitor *Monitor, name string) (*Instance, error) {
 	// NOTE: creating an instance WON'T start qemu. the monitor will start it
 	//       as soon as it notices a non-running instance in the registry.
 
+	if monitor == nil {
+		return nil, fmt.Errorf("monitor: %s: invalid monitor")
+	}
+
 	config, err := qemu.ParseConfig(monitor.ConfigDir, name)
 	if err != nil {
 		return nil, err
@@ -171,24 +175,27 @@ func (i *Instance) Start() {
 	i.opMutex.Lock()
 
 	if i.retries > i.Config.MaximumRetries {
-		logutils.Notice.Printf("monitor: %s: maximum number of retries exceeded (%d)", i.Name,
+		logutils.Error.Printf("monitor: %s: maximum number of retries exceeded (%d)", i.Name,
 			i.Config.MaximumRetries)
 		i.opMutex.Unlock()
-		i.monitor.cleanup(i)
+		i.Shutdown()
 		return
 	}
+
+	logutils.Warning.Printf("monitor: %s: start", i.Name)
 
 	defer i.opMutex.Unlock()
 
 	if i.retries > 0 {
-		logutils.Notice.Printf("monitor: %s: retrying to start (%d)", i.Name, i.retries)
+		logutils.Warning.Printf("monitor: %s: start: retry %d", i.Name, i.retries)
 	}
 
 	if err := qemu.Run(i.Config); err != nil {
 		logutils.LogError(err)
 		i.retries++
+		logutils.Warning.Printf("monitor: %s: start: failed", i.Name)
 	} else {
-		logutils.Warning.Printf("monitor: %s: started", i.Name)
+		logutils.Warning.Printf("monitor: %s: start: done", i.Name)
 	}
 }
 
@@ -200,6 +207,8 @@ func (i *Instance) Reset() {
 		return
 	}
 
+	logutils.Warning.Printf("monitor: %s: reset", i.Name)
+
 	qmp, err := i.QMP()
 	if err != nil {
 		logutils.LogError(err)
@@ -210,12 +219,11 @@ func (i *Instance) Reset() {
 	}
 
 	i.op = Start
+
+	logutils.Warning.Printf("monitor: %s: reset: done", i.Name)
 }
 
-func (i *Instance) Cleanup(withNICs bool) {
-	i.opMutex.Lock()
-	defer i.opMutex.Unlock()
-
+func (i *Instance) shutdown() {
 	pid, err := i.PID()
 	if err != nil {
 		logutils.LogError(err)
@@ -223,7 +231,7 @@ func (i *Instance) Cleanup(withNICs bool) {
 
 	qmp, err := i.QMP()
 	if err == nil {
-		logutils.Warning.Printf("monitor: %s: sending powerdown command (%ds timeout)", i.Name,
+		logutils.Notice.Printf("monitor: %s: sending powerdown command (%ds timeout)", i.Name,
 			i.Config.ShutdownTimeout)
 		qmp.Powerdown()
 
@@ -236,7 +244,7 @@ func (i *Instance) Cleanup(withNICs bool) {
 	}
 
 	if ok := i.ProcessRunning(); ok {
-		logutils.Warning.Printf("monitor: %s: sending SIGKILL", i.Name)
+		logutils.Notice.Printf("monitor: %s: sending SIGKILL", i.Name)
 		syscall.Kill(pid, syscall.SIGKILL)
 	}
 
@@ -244,10 +252,33 @@ func (i *Instance) Cleanup(withNICs bool) {
 	for i.ProcessRunning() {
 		time.Sleep(time.Second)
 	}
+}
 
-	if withNICs {
-		CleanupNICs(i.Name, i.NICs)
-	}
+func (i *Instance) Shutdown() {
+	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
 
-	logutils.Warning.Printf("monitor: %s: shut down", i.Name)
+	i.monitor.instancesMutex.Lock()
+	defer i.monitor.instancesMutex.Unlock()
+
+	i.opMutex.Lock()
+	defer i.opMutex.Unlock()
+
+	i.shutdown()
+
+	CleanupNICs(i.Name, i.NICs)
+	delete(i.monitor.instances, i.Name)
+
+	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
+}
+
+func (i *Instance) Restart() {
+	logutils.Warning.Printf("monitor: %s: restart: shutdown", i.Name)
+
+	i.opMutex.Lock()
+	defer i.opMutex.Unlock()
+
+	i.shutdown()
+	i.op = Start
+
+	logutils.Warning.Printf("monitor: %s: restart: start", i.Name)
 }
