@@ -29,6 +29,7 @@ type Instance struct {
 	Config  *qemu.VirtualMachine `json:"config"`
 	Name    string               `json:"name"`
 	NICs    []*NIC               `json:"nics"`
+	pid     int
 	retries int
 	op      Operation
 	opMutex *sync.Mutex
@@ -57,6 +58,7 @@ func newInstance(monitor *Monitor, name string) (*Instance, error) {
 		Config:  config,
 		Name:    name,
 		NICs:    nics,
+		pid:     -1,
 		retries: 0,
 		op:      Start,
 		opMutex: &sync.Mutex{},
@@ -114,10 +116,22 @@ func (i *Instance) QMP() (*qmp.QMP, error) {
 }
 
 func (i *Instance) ProcessRunning() bool {
+	pid := i.pid
+
+	// if pid is set
+	if pid > 0 {
+		// check if process still alive
+		if err := syscall.Kill(pid, syscall.Signal(0)); err == nil {
+			return true
+		}
+	}
+
+	// fallback to re-reading PID file
 	pid, err := i.PID()
 	if err != nil {
 		return false
 	}
+	i.pid = pid
 
 	return syscall.Kill(pid, syscall.Signal(0)) == nil
 }
@@ -224,11 +238,6 @@ func (i *Instance) Reset() {
 }
 
 func (i *Instance) shutdown() {
-	pid, err := i.PID()
-	if err != nil {
-		logutils.LogError(err)
-	}
-
 	qmp, err := i.QMP()
 	if err == nil {
 		logutils.Notice.Printf("monitor: %s: sending powerdown command (%ds timeout)", i.Name,
@@ -245,7 +254,9 @@ func (i *Instance) shutdown() {
 
 	if ok := i.ProcessRunning(); ok {
 		logutils.Notice.Printf("monitor: %s: sending SIGKILL", i.Name)
-		syscall.Kill(pid, syscall.SIGKILL)
+
+		// if process is running, our cached PID is valid
+		syscall.Kill(i.pid, syscall.SIGKILL)
 	}
 
 	logutils.Notice.Printf("monitor: %s: waiting for process to exit", i.Name)
