@@ -255,13 +255,13 @@ func (i *Instance) shutdown() {
 }
 
 func (i *Instance) Shutdown() {
-	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
-
 	i.monitor.instancesMutex.Lock()
 	defer i.monitor.instancesMutex.Unlock()
 
 	i.opMutex.Lock()
 	defer i.opMutex.Unlock()
+
+	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
 
 	i.shutdown()
 
@@ -272,13 +272,14 @@ func (i *Instance) Shutdown() {
 }
 
 func (i *Instance) Restart() {
-	logutils.Warning.Printf("monitor: %s: restart: shutdown", i.Name)
-
 	i.opMutex.Lock()
 	defer i.opMutex.Unlock()
+
+	logutils.Warning.Printf("monitor: %s: restart (shutdown + start)", i.Name)
+	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
 
 	i.shutdown()
 	i.op = Start
 
-	logutils.Warning.Printf("monitor: %s: restart: start", i.Name)
+	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
 }
