@@ -2,6 +2,8 @@ package ipc
 
 import (
 	"net/rpc"
+
+	"github.com/rafaelmartins/simplevirt/pkg/monitor"
 )
 
 var (
@@ -14,18 +16,22 @@ var (
 type Handler struct {
 	configDir  string
 	runtimeDir string
+	monitor    *monitor.Monitor
 }
 
 type ClientHandler struct {
 	Client *rpc.Client
 }
 
-func RegisterHandlers(configDir string, runtimeDir string) {
+func RegisterHandlers(configDir string, runtimeDir string) *monitor.Monitor {
+	mon := monitor.NewMonitor(configDir, runtimeDir)
 	hdr := Handler{
 		configDir:  configDir,
 		runtimeDir: runtimeDir,
+		monitor:    mon,
 	}
 	rpc.RegisterName(ServiceName, &hdr)
+	return mon
 }
 
 func NewClientHandler(client *rpc.Client) *ClientHandler {

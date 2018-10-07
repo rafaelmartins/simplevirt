@@ -72,3 +72,17 @@ func LogError(err error) error {
 	}
 	return err
 }
+
+func LogWarning(err error) error {
+	if err != nil {
+		Warning.Println(err)
+	}
+	return err
+}
+
+func LogNotice(err error) error {
+	if err != nil {
+		Notice.Println(err)
+	}
+	return err
+}

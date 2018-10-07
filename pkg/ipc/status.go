@@ -3,21 +3,24 @@ package ipc
 import (
 	"fmt"
 
-	"github.com/rafaelmartins/simplevirt/pkg/qemu"
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
 func (h *Handler) GetVMStatus(args []string, res *string) error {
 	if len(args) != 1 {
 		return fmt.Errorf("GetVMStatus: requires 1 argument")
 	}
-	vms, err := qemu.List(h.configDir)
+
+	logutils.Notice.Printf("ipc: GetVMStatus(%q)", args[0])
+
+	vms, err := h.monitor.List()
 	if err != nil {
 		return err
 	}
 
 	for _, vm := range vms {
 		if args[0] == vm {
-			*res = qemu.GetStatus(args[0])
+			*res = h.monitor.Status(args[0])
 			return nil
 		}
 	}

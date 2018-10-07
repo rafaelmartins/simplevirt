@@ -1,4 +1,4 @@
-package qemu
+package qmp
 
 import (
 	"bufio"
@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"net"
 )
+
+type QMP struct {
+	Socket string
+}
 
 type qmpError struct {
 	Class string `json:"class"`
@@ -18,7 +22,7 @@ type qmpResponse struct {
 	Hello  *interface{}     `json:"QMP"`
 }
 
-type qmpQueryStatusResponse struct {
+type QueryStatusResponse struct {
 	Status  string `json:"status"`
 	Running bool   `json:"running"`
 }
@@ -54,8 +58,12 @@ func qmpCall(r *bufio.Reader, w *bufio.Writer, command string) (*json.RawMessage
 	return resp.Return, nil
 }
 
-func qmpSendCommand(qmp string, command string) (*json.RawMessage, error) {
-	conn, err := net.Dial("unix", qmp)
+func (q *QMP) sendCommand(command string) (*json.RawMessage, error) {
+	if q.Socket == "" {
+		return nil, fmt.Errorf("qmp: empty QMP socket is not valid")
+	}
+
+	conn, err := net.Dial("unix", q.Socket)
 	if err != nil {
 		return nil, err
 	}
@@ -90,23 +98,23 @@ func qmpSendCommand(qmp string, command string) (*json.RawMessage, error) {
 	return rv, nil
 }
 
-func qmpPowerdown(qmp string) error {
-	_, err := qmpSendCommand(qmp, "system_powerdown")
+func (q *QMP) Powerdown() error {
+	_, err := q.sendCommand("system_powerdown")
 	return err
 }
 
-func qmpReset(qmp string) error {
-	_, err := qmpSendCommand(qmp, "system_reset")
+func (q *QMP) Reset() error {
+	_, err := q.sendCommand("system_reset")
 	return err
 }
 
-func qmpQueryStatus(qmp string) (*qmpQueryStatusResponse, error) {
-	cmd, err := qmpSendCommand(qmp, "query-status")
+func (q *QMP) QueryStatus() (*QueryStatusResponse, error) {
+	cmd, err := q.sendCommand("query-status")
 	if err != nil {
 		return nil, err
 	}
 
-	rv := &qmpQueryStatusResponse{}
+	rv := &QueryStatusResponse{}
 	if err := json.Unmarshal(*cmd, &rv); err != nil {
 		return nil, err
 	}

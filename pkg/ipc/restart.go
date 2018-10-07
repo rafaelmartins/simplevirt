@@ -2,26 +2,20 @@ package ipc
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/rafaelmartins/simplevirt/pkg/qemu"
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
 func (h *Handler) RestartVM(args []string, res *int) error {
 	*res = 0
 
 	if len(args) != 1 {
-		return fmt.Errorf("StartVM: requires 1 argument")
+		return fmt.Errorf("RestartVM: requires 1 argument")
 	}
 
-	if err := qemu.Shutdown(args[0]); err != nil {
-		*res = 1
-		return err
-	}
+	logutils.Notice.Printf("ipc: RestartVM(%q)", args[0])
 
-	time.Sleep(time.Second)
-
-	if err := qemu.Start(h.configDir, h.runtimeDir, args[0]); err != nil {
+	if err := h.monitor.Restart(args[0]); err != nil {
 		*res = 1
 		return err
 	}

@@ -1,11 +1,13 @@
 package ipc
 
 import (
-	"github.com/rafaelmartins/simplevirt/pkg/qemu"
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
 func (h *Handler) ListVMs(_ struct{}, res *[]string) error {
-	vms, err := qemu.List(h.configDir)
+	logutils.Notice.Printf("ipc: ListVMs()")
+
+	vms, err := h.monitor.List()
 	if err != nil {
 		return err
 	}

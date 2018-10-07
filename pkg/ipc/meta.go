@@ -1,6 +1,12 @@
 package ipc
 
+import (
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+)
+
 func (h *Handler) GetProtocolVersion(_ struct{}, res *int) error {
+	logutils.Notice.Printf("ipc: GetProtocolVersion()")
+
 	*res = ProtocolVersion
 	return nil
 }

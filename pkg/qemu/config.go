@@ -2,14 +2,10 @@ package qemu
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -22,47 +18,64 @@ var (
 	reConfig = regexp.MustCompile(`^([^\.].*)\.ya?ml$`)
 )
 
-type drive struct {
-	File      string `yaml:"file"`
-	Interface string `yaml:"interface"`
-	Media     string `yaml:"media"`
-	Snapshot  bool   `yaml:"snapshot"`
-	Cache     string `yaml:"cache"`
-	Format    string `yaml:"format"`
+type Drive struct {
+	File      string `yaml:"file" json:"file"`
+	Interface string `yaml:"interface" json:"interface"`
+	Media     string `yaml:"media" json:"media"`
+	Snapshot  bool   `yaml:"snapshot" json:"snapshot"`
+	Cache     string `yaml:"cache" json:"cache"`
+	Format    string `yaml:"format" json:"format"`
 }
 
-type nic struct {
-	Bridge      string            `yaml:"bridge"`
-	MACAddr     string            `yaml:"mac_address"`
-	Model       string            `yaml:"model"`
-	NetUserArgs map[string]string `yaml:"net_user_args"`
+type NIC struct {
+	Bridge      string            `yaml:"bridge" json:"bridge"`
+	MACAddr     string            `yaml:"mac_address" json:"mac_address"`
+	Model       string            `yaml:"model" json:"model"`
+	NetUserArgs map[string]string `yaml:"net_user_args" json:"net_user_args"`
 	device      string
 }
 
-type virtualmachine struct {
+type VirtualMachine struct {
 	name    string
 	qmp     string
 	pidfile string
 
-	AutoStart bool `yaml:"auto_start"`
+	AutoStart bool `yaml:"auto_start" json:"auto_start"`
 
-	SystemTarget string `yaml:"system_target"`
-	MachineType  string `yaml:"machine_type"`
-	RunAs        string `yaml:"run_as"`
-	EnableKVM    bool   `yaml:"enable_kvm"`
+	SystemTarget string `yaml:"system_target" json:"system_target"`
+	MachineType  string `yaml:"machine_type" json:"machine_type"`
+	RunAs        string `yaml:"run_as" json:"run_as"`
+	EnableKVM    bool   `yaml:"enable_kvm" json:"enable_kvm"`
 
-	Boot   map[string]string `yaml:"boot"`
-	Drives []*drive          `yaml:"drives"`
-	NICs   []*nic            `yaml:"nics"`
+	Boot   map[string]string `yaml:"boot" json:"boot"`
+	Drives []*Drive          `yaml:"drives" json:"drives"`
+	NICs   []*NIC            `yaml:"nics" json:"nics"`
 
-	CPUModel   string `yaml:"cpu_model"`
-	CPUs       int    `yaml:"cpus"`
-	RAM        string `yaml:"ram"`
-	VNCDisplay string `yaml:"vnc_display"`
+	CPUModel   string `yaml:"cpu_model" json:"cpu_model"`
+	CPUs       int    `yaml:"cpus" json:"cpus"`
+	RAM        string `yaml:"ram" json:"ram"`
+	VNCDisplay string `yaml:"vnc_display" json:"vnc_display"`
 
-	AdditionalArgs []string `yaml:"additional_args"`
+	AdditionalArgs []string `yaml:"additional_args" json:"additional_args"`
 
-	ShutdownTimeout int `yaml:"shutdown_timeout"`
+	ShutdownTimeout int `yaml:"shutdown_timeout" json:"shutdown_timeout"`
+	MaximumRetries  int `yaml:"maximum_retries" json:"maximum_retries"`
+}
+
+func (n *NIC) SetDevice(device string) {
+	n.device = device
+}
+
+func (vm *VirtualMachine) SetName(name string) {
+	vm.name = name
+}
+
+func (vm *VirtualMachine) SetQMP(qmp string) {
+	vm.qmp = qmp
+}
+
+func (vm *VirtualMachine) SetPIDFile(pidfile string) {
+	vm.pidfile = pidfile
 }
 
 func appendParam(name string, param string, deft string, choices []string, error_name string) (string, error) {
@@ -88,7 +101,7 @@ func appendParam(name string, param string, deft string, choices []string, error
 	return fmt.Sprintf(",%s=%s", name, param), nil
 }
 
-func buildCmdDrive(idx int, drv *drive) ([]string, error) {
+func buildCmdDrive(idx int, drv *Drive) ([]string, error) {
 	if drv.File == "" {
 		return nil, fmt.Errorf("qemu: drive[%d].file: parameter is required", idx)
 	}
@@ -129,7 +142,7 @@ func buildCmdDrive(idx int, drv *drive) ([]string, error) {
 	return []string{"-drive", arg}, nil
 }
 
-func buildCmdDrives(drvs []*drive) ([]string, error) {
+func buildCmdDrives(drvs []*Drive) ([]string, error) {
 	if len(drvs) == 0 {
 		return nil, fmt.Errorf("qemu: drive: at least one drive must be defined")
 	}
@@ -144,7 +157,7 @@ func buildCmdDrives(drvs []*drive) ([]string, error) {
 	return rv, nil
 }
 
-func buildCmdNIC(idx int, nc *nic) ([]string, error) {
+func buildCmdNIC(idx int, nc *NIC) ([]string, error) {
 	if nc.MACAddr == "" {
 		return nil, fmt.Errorf("qemu: nic[%d].mac_address: parameter is required", idx)
 	}
@@ -179,7 +192,7 @@ func buildCmdNIC(idx int, nc *nic) ([]string, error) {
 	return []string{"-nic", arg}, nil
 }
 
-func buildCmdNICs(nics []*nic) ([]string, error) {
+func buildCmdNICs(nics []*NIC) ([]string, error) {
 	if len(nics) == 0 {
 		return nil, fmt.Errorf("qemu: nic: at least one NIC must be defined")
 	}
@@ -194,7 +207,7 @@ func buildCmdNICs(nics []*nic) ([]string, error) {
 	return rv, nil
 }
 
-func buildCmdVirtualMachine(vm *virtualmachine) ([]string, error) {
+func buildCmdVirtualMachine(vm *VirtualMachine) ([]string, error) {
 	if vm == nil {
 		return nil, fmt.Errorf("qemu: virtualmachine: not defined")
 	}
@@ -268,69 +281,6 @@ func buildCmdVirtualMachine(vm *virtualmachine) ([]string, error) {
 	rv = append(rv, nics...)
 
 	rv = append(rv, vm.AdditionalArgs...)
-
-	return rv, nil
-}
-
-func parseConfig(configDir string, name string) (*virtualmachine, error) {
-	var cfg string
-	for _, value := range []string{name + ".yml", name + ".yaml"} {
-		value := filepath.Join(configDir, value)
-		if _, err := os.Stat(value); err == nil {
-			cfg = value
-			break
-		}
-	}
-
-	if cfg == "" {
-		return nil, fmt.Errorf("qemu: config: failed to find configuration file for virtual machine: %s", name)
-	}
-
-	data, err := ioutil.ReadFile(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	config := virtualmachine{
-		SystemTarget:    "x86_64",
-		EnableKVM:       true,
-		ShutdownTimeout: 60,
-		RunAs:           "nobody",
-	}
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, err
-	}
-
-	return &config, nil
-}
-
-func listConfigs(configDir string) ([]string, error) {
-	files, err := ioutil.ReadDir(configDir)
-	if err != nil {
-		return nil, err
-	}
-
-	rv := []string{}
-	for _, info := range files {
-		if info.IsDir() {
-			continue
-		}
-
-		m := reConfig.FindStringSubmatch(info.Name())
-		if len(m) == 0 {
-			continue
-		}
-
-		found := false
-		for _, n := range rv {
-			if n == m[1] {
-				found = true
-			}
-		}
-		if !found {
-			rv = append(rv, m[1])
-		}
-	}
 
 	return rv, nil
 }

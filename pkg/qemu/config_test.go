@@ -11,17 +11,17 @@ var (
 )
 
 func TestBuildCmdDrive(t *testing.T) {
-	val, err := buildCmdDrive(1, &drive{})
+	val, err := buildCmdDrive(1, &Drive{})
 	AssertError(t, err, "qemu: drive[1].file: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File: "foo.img",
 	})
 	AssertError(t, err, "qemu: drive[1].file: path must be absolute")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File: "/foo.img",
 	})
 	AssertNonError(t, err)
@@ -29,7 +29,7 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/foo.img,if=virtio,media=disk,cache=none",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File: "/fo,o,img",
 	})
 	AssertNonError(t, err)
@@ -37,7 +37,7 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/fo,,o,,img,if=virtio,media=disk,cache=none",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:      "/foo.img",
 		Interface: "ide",
 	})
@@ -46,14 +46,14 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/foo.img,if=ide,media=disk,cache=none",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:      "/foo.img",
 		Interface: "bola",
 	})
 	AssertError(t, err, "qemu: drive[1].interface: invalid value (bola). valid choices are: 'ide', 'scsi', 'sd', 'mtd', 'floppy', 'pflash', 'virtio', 'none'")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:  "/foo.img",
 		Media: "cdrom",
 	})
@@ -62,14 +62,14 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/foo.img,if=virtio,media=cdrom,cache=none",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:  "/foo.img",
 		Media: "bola",
 	})
 	AssertError(t, err, "qemu: drive[1].media: invalid value (bola). valid choices are: 'disk', 'cdrom'")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:  "/foo.img",
 		Cache: "writeback",
 	})
@@ -78,14 +78,14 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/foo.img,if=virtio,media=disk,cache=writeback",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:  "/foo.img",
 		Cache: "bola",
 	})
 	AssertError(t, err, "qemu: drive[1].cache: invalid value (bola). valid choices are: 'none', 'writeback', 'unsafe', 'directsync', 'writethrough'")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:   "/foo.img",
 		Format: "raw",
 	})
@@ -94,14 +94,14 @@ func TestBuildCmdDrive(t *testing.T) {
 		"-drive", "file=/foo.img,if=virtio,media=disk,cache=none,format=raw",
 	})
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:   "/foo.img",
 		Format: "bola",
 	})
 	AssertError(t, err, "qemu: drive[1].format: invalid value (bola). valid choices are: 'raw'")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrive(1, &drive{
+	val, err = buildCmdDrive(1, &Drive{
 		File:     "/foo.img",
 		Snapshot: true,
 	})
@@ -116,41 +116,41 @@ func TestBuildCmdDrives(t *testing.T) {
 	AssertError(t, err, "qemu: drive: at least one drive must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrives([]*drive{})
+	val, err = buildCmdDrives([]*Drive{})
 	AssertError(t, err, "qemu: drive: at least one drive must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrives([]*drive{
-		&drive{},
+	val, err = buildCmdDrives([]*Drive{
+		&Drive{},
 	})
 	AssertError(t, err, "qemu: drive[1].file: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrives([]*drive{
-		&drive{File: "/foo.img"},
+	val, err = buildCmdDrives([]*Drive{
+		&Drive{File: "/foo.img"},
 	})
 	AssertNonError(t, err)
 	AssertEqual(t, val, []string{
 		"-drive", "file=/foo.img,if=virtio,media=disk,cache=none",
 	})
 
-	val, err = buildCmdDrives([]*drive{
-		&drive{},
-		&drive{},
+	val, err = buildCmdDrives([]*Drive{
+		&Drive{},
+		&Drive{},
 	})
 	AssertError(t, err, "qemu: drive[1].file: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrives([]*drive{
-		&drive{File: "/foo.img"},
-		&drive{},
+	val, err = buildCmdDrives([]*Drive{
+		&Drive{File: "/foo.img"},
+		&Drive{},
 	})
 	AssertError(t, err, "qemu: drive[2].file: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdDrives([]*drive{
-		&drive{File: "/foo.img"},
-		&drive{File: "/bar.img"},
+	val, err = buildCmdDrives([]*Drive{
+		&Drive{File: "/foo.img"},
+		&Drive{File: "/bar.img"},
 	})
 	AssertNonError(t, err)
 	AssertEqual(t, val, []string{
@@ -160,17 +160,17 @@ func TestBuildCmdDrives(t *testing.T) {
 }
 
 func TestBuildCmdNIC(t *testing.T) {
-	val, err := buildCmdNIC(1, &nic{})
+	val, err := buildCmdNIC(1, &NIC{})
 	AssertError(t, err, "qemu: nic[1].mac_address: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "bola",
 	})
 	AssertError(t, err, "qemu: nic[1].mac_address: invalid value (address bola: invalid MAC address)")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "52:54:00:fc:70:3b",
 	})
 	AssertNonError(t, err)
@@ -178,7 +178,7 @@ func TestBuildCmdNIC(t *testing.T) {
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "52:54:00:fc:70:3b",
 		Model:   "e1000",
 	})
@@ -187,7 +187,7 @@ func TestBuildCmdNIC(t *testing.T) {
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=e1000",
 	})
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr:     "52:54:00:fc:70:3b",
 		NetUserArgs: map[string]string{"foo": "bar"},
 	})
@@ -196,14 +196,14 @@ func TestBuildCmdNIC(t *testing.T) {
 		"-nic", "user,foo=bar,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "52:54:00:fc:70:3b",
 		Bridge:  "br0",
 	})
 	AssertError(t, err, "qemu: nic[1]: missing device")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "52:54:00:fc:70:3b",
 		Bridge:  "br0",
 		device:  "qtap0",
@@ -213,7 +213,7 @@ func TestBuildCmdNIC(t *testing.T) {
 		"-nic", "tap,ifname=qtap0,script=no,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdNIC(1, &nic{
+	val, err = buildCmdNIC(1, &NIC{
 		MACAddr: "52:54:00:fc:70:3b",
 		Bridge:  "br0",
 		device:  "qtap0",
@@ -230,41 +230,41 @@ func TestBuildCmdNICs(t *testing.T) {
 	AssertError(t, err, "qemu: nic: at least one NIC must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNICs([]*nic{})
+	val, err = buildCmdNICs([]*NIC{})
 	AssertError(t, err, "qemu: nic: at least one NIC must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNICs([]*nic{
-		&nic{},
+	val, err = buildCmdNICs([]*NIC{
+		&NIC{},
 	})
 	AssertError(t, err, "qemu: nic[1].mac_address: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNICs([]*nic{
-		&nic{MACAddr: "52:54:00:fc:70:3b"},
+	val, err = buildCmdNICs([]*NIC{
+		&NIC{MACAddr: "52:54:00:fc:70:3b"},
 	})
 	AssertNonError(t, err)
 	AssertEqual(t, val, []string{
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdNICs([]*nic{
-		&nic{},
-		&nic{},
+	val, err = buildCmdNICs([]*NIC{
+		&NIC{},
+		&NIC{},
 	})
 	AssertError(t, err, "qemu: nic[1].mac_address: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNICs([]*nic{
-		&nic{MACAddr: "52:54:00:fc:70:3b"},
-		&nic{},
+	val, err = buildCmdNICs([]*NIC{
+		&NIC{MACAddr: "52:54:00:fc:70:3b"},
+		&NIC{},
 	})
 	AssertError(t, err, "qemu: nic[2].mac_address: parameter is required")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdNICs([]*nic{
-		&nic{MACAddr: "52:54:00:fc:70:3b"},
-		&nic{MACAddr: "52:54:00:fc:70:3c"},
+	val, err = buildCmdNICs([]*NIC{
+		&NIC{MACAddr: "52:54:00:fc:70:3b"},
+		&NIC{MACAddr: "52:54:00:fc:70:3c"},
 	})
 	AssertNonError(t, err)
 	AssertEqual(t, val, []string{
@@ -278,36 +278,36 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 	AssertError(t, err, "qemu: virtualmachine: not defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{})
+	val, err = buildCmdVirtualMachine(&VirtualMachine{})
 	AssertError(t, err, "qemu: drive: at least one drive must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
 	})
 	AssertError(t, err, "qemu: nic: at least one NIC must be defined")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
-		NICs: []*nic{
-			&nic{MACAddr: "52:54:00:fc:70:3b"},
+		NICs: []*NIC{
+			&NIC{MACAddr: "52:54:00:fc:70:3b"},
 		},
 		RAM: "10.5A",
 	})
 	AssertError(t, err, "qemu: virtualmachine: invalid RAM size (10.5A)")
 	AssertEqual(t, val, n)
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
-		NICs: []*nic{
-			&nic{MACAddr: "52:54:00:fc:70:3b"},
+		NICs: []*NIC{
+			&NIC{MACAddr: "52:54:00:fc:70:3b"},
 		},
 	})
 	AssertNonError(t, err)
@@ -317,12 +317,12 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
-		NICs: []*nic{
-			&nic{MACAddr: "52:54:00:fc:70:3b"},
+		NICs: []*NIC{
+			&NIC{MACAddr: "52:54:00:fc:70:3b"},
 		},
 		RAM: "400M",
 	})
@@ -334,12 +334,12 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
-		NICs: []*nic{
-			&nic{MACAddr: "52:54:00:fc:70:3b"},
+		NICs: []*NIC{
+			&NIC{MACAddr: "52:54:00:fc:70:3b"},
 		},
 		RAM: "4.5G",
 	})
@@ -351,15 +351,15 @@ func TestBuildCmdVirtualMachine(t *testing.T) {
 		"-nic", "user,mac=52:54:00:fc:70:3b,model=virtio",
 	})
 
-	val, err = buildCmdVirtualMachine(&virtualmachine{
+	val, err = buildCmdVirtualMachine(&VirtualMachine{
 		name:    "bola",
 		qmp:     "/run/bola.sock",
 		pidfile: "/run/bola.pid",
-		Drives: []*drive{
-			&drive{File: "/foo.img"},
+		Drives: []*Drive{
+			&Drive{File: "/foo.img"},
 		},
-		NICs: []*nic{
-			&nic{MACAddr: "52:54:00:fc:70:3b"},
+		NICs: []*NIC{
+			&NIC{MACAddr: "52:54:00:fc:70:3b"},
 		},
 		Boot: map[string]string{
 			"order": "cd",

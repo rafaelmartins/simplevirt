@@ -3,7 +3,7 @@ package ipc
 import (
 	"fmt"
 
-	"github.com/rafaelmartins/simplevirt/pkg/qemu"
+	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 )
 
 func (h *Handler) ShutdownVM(args []string, res *int) error {
@@ -13,7 +13,9 @@ func (h *Handler) ShutdownVM(args []string, res *int) error {
 		return fmt.Errorf("ShutdownVM: requires 1 argument")
 	}
 
-	if err := qemu.Shutdown(args[0]); err != nil {
+	logutils.Notice.Printf("ipc: ShutdownVM(%q)", args[0])
+
+	if err := h.monitor.Shutdown(args[0]); err != nil {
 		*res = 1
 		return err
 	}
