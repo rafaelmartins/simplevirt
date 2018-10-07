@@ -39,7 +39,7 @@ func newInstance(monitor *Monitor, name string) (*Instance, error) {
 	//       as soon as it notices a non-running instance in the registry.
 
 	if monitor == nil {
-		return nil, fmt.Errorf("monitor: %s: invalid monitor")
+		return nil, fmt.Errorf("monitor: %s: invalid monitor", name)
 	}
 
 	config, err := qemu.ParseConfig(monitor.ConfigDir, name)
