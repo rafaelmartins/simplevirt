@@ -21,11 +21,14 @@ type Monitor struct {
 }
 
 func NewMonitor(configDir string, runtimeDir string) *Monitor {
-	mon := Monitor{ConfigDir: configDir, RuntimeDir: runtimeDir}
-	mon.instances = make(map[string]*Instance)
-	mon.instancesMutex = &sync.Mutex{}
-	mon.exit = false
-	mon.exitChan = make(chan bool)
+	mon := Monitor{
+		ConfigDir:      configDir,
+		RuntimeDir:     runtimeDir,
+		instances:      make(map[string]*Instance),
+		instancesMutex: &sync.Mutex{},
+		exit:           false,
+		exitChan:       make(chan bool),
+	}
 
 	go func() {
 		for {
@@ -35,24 +38,18 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 					continue
 				}
 
-				if running := instance.ProcessRunning(); running {
-					continue
-				}
+				switch instance.op {
+				case Start:
+					instance.Start()
 
-				if instance.retries > instance.Config.MaximumRetries {
-					logutils.Notice.Printf("monitor: %s: maximum number of retries exceeded (%d)", name,
-						instance.Config.MaximumRetries)
+				case Shutdown:
 					mon.cleanup(instance)
-					continue
-				} else if instance.retries > 0 {
-					logutils.Notice.Printf("monitor: %s: retrying to start (%d)", name, instance.retries)
-				}
 
-				if err := qemu.Run(instance.Config); err != nil {
-					logutils.LogError(err)
-					instance.retries++
-				} else {
-					logutils.Warning.Printf("monitor: %s: started", name)
+				case Restart:
+					mon.cleanup(instance)
+
+				case Reset:
+					instance.Reset()
 				}
 			}
 
@@ -93,6 +90,8 @@ func (m *Monitor) Cleanup() {
 	_ = <-m.exitChan
 
 	for _, instance := range m.instances {
+		// force cleanup
+		instance.op = Start
 		m.cleanup(instance)
 	}
 
@@ -107,8 +106,14 @@ func (m *Monitor) cleanup(instance *Instance) {
 	m.instancesMutex.Lock()
 	defer m.instancesMutex.Unlock()
 
-	instance.Cleanup()
-	delete(m.instances, instance.Name)
+	restarting := instance.op == Restart
+
+	instance.Cleanup(!restarting)
+	if restarting {
+		instance.op = Start
+	} else {
+		delete(m.instances, instance.Name)
+	}
 }
 
 func (m *Monitor) Get(name string) *Instance {
@@ -200,11 +205,9 @@ func (m *Monitor) Shutdown(name string) error {
 		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
 	}
 
-	if running := instance.Running(); !running {
-		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
-	}
-
-	go m.cleanup(instance)
+	instance.opMutex.Lock()
+	defer instance.opMutex.Unlock()
+	instance.op = Shutdown
 
 	logutils.Notice.Printf("monitor: %s: shutdown request completed", name)
 
@@ -214,12 +217,14 @@ func (m *Monitor) Shutdown(name string) error {
 func (m *Monitor) Restart(name string) error {
 	logutils.Notice.Printf("monitor: %s: requesting restart", name)
 
-	if err := m.Shutdown(name); err != nil {
-		return err
+	instance := m.Get(name)
+	if instance == nil {
+		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
 	}
 
-	time.Sleep(time.Second)
-	go m.Start(name)
+	instance.opMutex.Lock()
+	defer instance.opMutex.Unlock()
+	instance.op = Restart
 
 	logutils.Notice.Printf("monitor: %s: restart request completed", name)
 
@@ -234,18 +239,9 @@ func (m *Monitor) Reset(name string) error {
 		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
 	}
 
-	if running := instance.Running(); !running {
-		return logutils.LogWarning(fmt.Errorf("monitor: %s: not running", name))
-	}
-
-	qmp, err := instance.QMP()
-	if err != nil {
-		return logutils.LogError(err)
-	}
-
-	if err := qmp.Reset(); err != nil {
-		return logutils.LogError(err)
-	}
+	instance.opMutex.Lock()
+	defer instance.opMutex.Unlock()
+	instance.op = Reset
 
 	logutils.Warning.Printf("monitor: %s: reset", name)
 

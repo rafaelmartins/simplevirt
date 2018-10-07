@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -14,12 +15,23 @@ import (
 	"github.com/rafaelmartins/simplevirt/pkg/qmp"
 )
 
+type Operation int
+
+const (
+	Start Operation = iota
+	Shutdown
+	Restart
+	Reset
+)
+
 type Instance struct {
 	monitor *Monitor
 	Config  *qemu.VirtualMachine `json:"config"`
 	Name    string               `json:"name"`
 	NICs    []*NIC               `json:"nics"`
 	retries int
+	op      Operation
+	opMutex *sync.Mutex
 }
 
 func newInstance(monitor *Monitor, name string) (*Instance, error) {
@@ -36,7 +48,15 @@ func newInstance(monitor *Monitor, name string) (*Instance, error) {
 		return nil, fmt.Errorf("monitor: %s: failed to create network interfaces", name)
 	}
 
-	inst := Instance{monitor: monitor, Name: name, Config: config, NICs: nics, retries: 0}
+	inst := Instance{
+		monitor: monitor,
+		Config:  config,
+		Name:    name,
+		NICs:    nics,
+		retries: 0,
+		op:      Start,
+		opMutex: &sync.Mutex{},
+	}
 
 	inst.Config.SetName(name)
 	inst.Config.SetQMP(inst.QMPSocket())
@@ -143,7 +163,59 @@ func (i *Instance) Running() bool {
 	return true
 }
 
-func (i *Instance) Cleanup() {
+func (i *Instance) Start() {
+	if running := i.ProcessRunning(); running {
+		return
+	}
+
+	i.opMutex.Lock()
+
+	if i.retries > i.Config.MaximumRetries {
+		logutils.Notice.Printf("monitor: %s: maximum number of retries exceeded (%d)", i.Name,
+			i.Config.MaximumRetries)
+		i.opMutex.Unlock()
+		i.monitor.cleanup(i)
+		return
+	}
+
+	defer i.opMutex.Unlock()
+
+	if i.retries > 0 {
+		logutils.Notice.Printf("monitor: %s: retrying to start (%d)", i.Name, i.retries)
+	}
+
+	if err := qemu.Run(i.Config); err != nil {
+		logutils.LogError(err)
+		i.retries++
+	} else {
+		logutils.Warning.Printf("monitor: %s: started", i.Name)
+	}
+}
+
+func (i *Instance) Reset() {
+	i.opMutex.Lock()
+	defer i.opMutex.Unlock()
+
+	if running := i.Running(); !running {
+		return
+	}
+
+	qmp, err := i.QMP()
+	if err != nil {
+		logutils.LogError(err)
+	}
+
+	if err := qmp.Reset(); err != nil {
+		logutils.LogError(err)
+	}
+
+	i.op = Start
+}
+
+func (i *Instance) Cleanup(withNICs bool) {
+	i.opMutex.Lock()
+	defer i.opMutex.Unlock()
+
 	pid, err := i.PID()
 	if err != nil {
 		logutils.LogError(err)
@@ -173,7 +245,9 @@ func (i *Instance) Cleanup() {
 		time.Sleep(time.Second)
 	}
 
-	CleanupNICs(i.Name, i.NICs)
+	if withNICs {
+		CleanupNICs(i.Name, i.NICs)
+	}
 
 	logutils.Warning.Printf("monitor: %s: shut down", i.Name)
 }
