@@ -116,12 +116,10 @@ func (i *Instance) QMP() (*qmp.QMP, error) {
 }
 
 func (i *Instance) ProcessRunning() bool {
-	pid := i.pid
-
 	// if pid is set
-	if pid > 0 {
+	if i.pid > 0 {
 		// check if process still alive
-		if err := syscall.Kill(pid, syscall.Signal(0)); err == nil {
+		if err := syscall.Kill(i.pid, syscall.Signal(0)); err == nil {
 			return true
 		}
 	}
