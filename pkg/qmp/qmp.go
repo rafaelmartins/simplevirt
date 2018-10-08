@@ -33,7 +33,7 @@ func qmpCall(r *bufio.Reader, w *bufio.Writer, command string) (*json.RawMessage
 		return nil, err
 	}
 
-	if _, err := w.Write(append(cmd, '\x0a')); err != nil {
+	if _, err := w.Write(append(cmd, '\n')); err != nil {
 		return nil, err
 	}
 
