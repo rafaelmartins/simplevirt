@@ -15,7 +15,7 @@ type Monitor struct {
 	RuntimeDir string
 
 	instances      map[string]*Instance
-	instancesMutex *sync.Mutex
+	instancesMutex *sync.RWMutex
 	exit           bool
 	exitChan       chan bool
 }
@@ -25,7 +25,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 		ConfigDir:      configDir,
 		RuntimeDir:     runtimeDir,
 		instances:      make(map[string]*Instance),
-		instancesMutex: &sync.Mutex{},
+		instancesMutex: &sync.RWMutex{},
 		exit:           false,
 		exitChan:       make(chan bool),
 	}
@@ -97,9 +97,6 @@ func (m *Monitor) Cleanup() {
 }
 
 func (m *Monitor) Get(name string) *Instance {
-	m.instancesMutex.Lock()
-	defer m.instancesMutex.Unlock()
-
 	if instance, ok := m.instances[name]; ok {
 		return instance
 	}
@@ -154,20 +151,24 @@ func (m *Monitor) List() ([]string, error) {
 func (m *Monitor) Start(name string) error {
 	logutils.Notice.Printf("monitor: requesting start: %s", name)
 
+	m.instancesMutex.RLock()
 	instance := m.Get(name)
+	m.instancesMutex.RUnlock()
+
 	if instance != nil {
 		if running := instance.Running(); running {
 			return logutils.LogWarning(fmt.Errorf("monitor: %s: already running", name))
 		}
 	} else {
+		m.instancesMutex.Lock()
+		defer m.instancesMutex.Unlock()
+
 		var err error
 		instance, err = newInstance(m, name)
 		if err != nil {
 			return logutils.LogError(err)
 		}
 
-		m.instancesMutex.Lock()
-		defer m.instancesMutex.Unlock()
 		m.instances[name] = instance
 	}
 
@@ -176,6 +177,9 @@ func (m *Monitor) Start(name string) error {
 
 func (m *Monitor) Shutdown(name string) error {
 	logutils.Notice.Printf("monitor: requesting shutdown: %s", name)
+
+	m.instancesMutex.RLock()
+	defer m.instancesMutex.RUnlock()
 
 	instance := m.Get(name)
 	if instance == nil {
@@ -192,6 +196,9 @@ func (m *Monitor) Shutdown(name string) error {
 func (m *Monitor) Restart(name string) error {
 	logutils.Notice.Printf("monitor: requesting restart: %s", name)
 
+	m.instancesMutex.RLock()
+	defer m.instancesMutex.RUnlock()
+
 	instance := m.Get(name)
 	if instance == nil {
 		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
@@ -206,6 +213,9 @@ func (m *Monitor) Restart(name string) error {
 
 func (m *Monitor) Reset(name string) error {
 	logutils.Notice.Printf("monitor: requesting reset: %s", name)
+
+	m.instancesMutex.RLock()
+	defer m.instancesMutex.RUnlock()
 
 	instance := m.Get(name)
 	if instance == nil {

@@ -32,7 +32,7 @@ type Instance struct {
 	pid     int
 	retries int
 	op      Operation
-	opMutex *sync.Mutex
+	opMutex *sync.RWMutex
 }
 
 func newInstance(monitor *Monitor, name string) (*Instance, error) {
@@ -43,32 +43,38 @@ func newInstance(monitor *Monitor, name string) (*Instance, error) {
 		return nil, fmt.Errorf("monitor: %s: invalid monitor", name)
 	}
 
-	config, err := qemu.ParseConfig(monitor.ConfigDir, name)
-	if err != nil {
-		return nil, err
-	}
-
-	nics := newNICs(name, config)
-	if nics == nil {
-		return nil, fmt.Errorf("monitor: %s: failed to create network interfaces", name)
-	}
-
 	inst := Instance{
 		monitor: monitor,
-		Config:  config,
 		Name:    name,
-		NICs:    nics,
 		pid:     -1,
 		retries: 0,
 		op:      Start,
-		opMutex: &sync.Mutex{},
+		opMutex: &sync.RWMutex{},
 	}
 
-	inst.Config.SetName(name)
-	inst.Config.SetQMP(inst.QMPSocket())
-	inst.Config.SetPIDFile(inst.PIDFile())
+	if err := inst.readConfig(); err != nil {
+		return nil, err
+	}
 
 	return &inst, nil
+}
+
+func (i *Instance) readConfig() error {
+	var err error
+	if i.Config, err = qemu.ParseConfig(i.monitor.ConfigDir, i.Name); err != nil {
+		return err
+	}
+
+	i.NICs = newNICs(i.Name, i.Config)
+	if i.NICs == nil {
+		return fmt.Errorf("monitor: %s: failed to create network interfaces", i.Name)
+	}
+
+	i.Config.SetName(i.Name)
+	i.Config.SetQMP(i.QMPSocket())
+	i.Config.SetPIDFile(i.PIDFile())
+
+	return nil
 }
 
 func (i *Instance) PIDFile() string {
@@ -184,19 +190,19 @@ func (i *Instance) Start() {
 		return
 	}
 
-	i.opMutex.Lock()
+	i.opMutex.RLock()
 
 	if i.retries > i.Config.MaximumRetries {
 		logutils.Error.Printf("monitor: %s: maximum number of retries exceeded (%d)", i.Name,
 			i.Config.MaximumRetries)
-		i.opMutex.Unlock()
+		i.opMutex.RUnlock()
 		i.Shutdown()
 		return
 	}
 
-	logutils.Warning.Printf("monitor: %s: start", i.Name)
+	defer i.opMutex.RUnlock()
 
-	defer i.opMutex.Unlock()
+	logutils.Warning.Printf("monitor: %s: start", i.Name)
 
 	if i.retries > 0 {
 		logutils.Warning.Printf("monitor: %s: start: retry %d", i.Name, i.retries)
@@ -212,8 +218,8 @@ func (i *Instance) Start() {
 }
 
 func (i *Instance) Reset() {
-	i.opMutex.Lock()
-	defer i.opMutex.Unlock()
+	i.opMutex.RLock()
+	defer i.opMutex.RUnlock()
 
 	if running := i.Running(); !running {
 		return
@@ -261,33 +267,46 @@ func (i *Instance) shutdown() {
 	for i.ProcessRunning() {
 		time.Sleep(time.Second)
 	}
+
+	CleanupNICs(i.Name, i.NICs)
 }
 
 func (i *Instance) Shutdown() {
 	i.monitor.instancesMutex.Lock()
 	defer i.monitor.instancesMutex.Unlock()
 
-	i.opMutex.Lock()
-	defer i.opMutex.Unlock()
+	i.opMutex.RLock()
+	defer i.opMutex.RUnlock()
 
 	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
 
 	i.shutdown()
 
-	CleanupNICs(i.Name, i.NICs)
 	delete(i.monitor.instances, i.Name)
 
 	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
 }
 
 func (i *Instance) Restart() {
-	i.opMutex.Lock()
-	defer i.opMutex.Unlock()
+	i.opMutex.RLock()
+	defer i.opMutex.RUnlock()
 
 	logutils.Warning.Printf("monitor: %s: restart (shutdown + start)", i.Name)
 	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
 
 	i.shutdown()
+
+	if err := i.readConfig(); err != nil {
+		logutils.LogError(err)
+
+		i.monitor.instancesMutex.Lock()
+		defer i.monitor.instancesMutex.Unlock()
+
+		delete(i.monitor.instances, i.Name)
+
+		return
+	}
+
 	i.op = Start
 
 	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
