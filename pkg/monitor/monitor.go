@@ -33,23 +33,34 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 	go func() {
 		for {
 			for name, _ := range mon.instances {
+				mon.instancesMutex.RLock()
 				instance := mon.Get(name)
+				mon.instancesMutex.RUnlock()
 				if instance == nil {
 					continue
 				}
 
+				var err error
+
 				switch instance.op {
 				case Start:
-					instance.Start()
+					err = instance.Start()
 
 				case Shutdown:
-					instance.Shutdown()
+					err = instance.Shutdown()
 
 				case Restart:
-					instance.Restart()
+					err = instance.Restart()
 
 				case Reset:
-					instance.Reset()
+					err = instance.Reset()
+				}
+
+				if instance.opResult != nil {
+					select {
+					case instance.opResult <- err:
+					}
+					instance.opResult = nil
 				}
 			}
 
@@ -76,7 +87,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 		}
 
 		if vm.AutoStart {
-			logutils.LogError(mon.Start(vmName))
+			logutils.LogError(mon.Start(vmName, nil))
 		}
 	}
 
@@ -148,7 +159,7 @@ func (m *Monitor) List() ([]string, error) {
 	return rv, nil
 }
 
-func (m *Monitor) Start(name string) error {
+func (m *Monitor) Start(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting start: %s", name)
 
 	m.instancesMutex.RLock()
@@ -164,7 +175,7 @@ func (m *Monitor) Start(name string) error {
 		defer m.instancesMutex.Unlock()
 
 		var err error
-		instance, err = newInstance(m, name)
+		instance, err = newInstance(m, name, result)
 		if err != nil {
 			return logutils.LogError(err)
 		}
@@ -175,7 +186,7 @@ func (m *Monitor) Start(name string) error {
 	return nil
 }
 
-func (m *Monitor) Shutdown(name string) error {
+func (m *Monitor) Shutdown(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting shutdown: %s", name)
 
 	m.instancesMutex.RLock()
@@ -189,11 +200,12 @@ func (m *Monitor) Shutdown(name string) error {
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Shutdown
+	instance.opResult = result
 
 	return nil
 }
 
-func (m *Monitor) Restart(name string) error {
+func (m *Monitor) Restart(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting restart: %s", name)
 
 	m.instancesMutex.RLock()
@@ -207,11 +219,12 @@ func (m *Monitor) Restart(name string) error {
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Restart
+	instance.opResult = result
 
 	return nil
 }
 
-func (m *Monitor) Reset(name string) error {
+func (m *Monitor) Reset(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting reset: %s", name)
 
 	m.instancesMutex.RLock()
@@ -225,6 +238,7 @@ func (m *Monitor) Reset(name string) error {
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Reset
+	instance.opResult = result
 
 	return nil
 }

@@ -15,7 +15,14 @@ func (h *Handler) StartVM(args []string, res *int) error {
 
 	logutils.Notice.Printf("ipc: StartVM(%q)", args[0])
 
-	if err := h.monitor.Start(args[0]); err != nil {
+	mErr := make(chan error)
+
+	if err := h.monitor.Start(args[0], mErr); err != nil {
+		*res = 1
+		return err
+	}
+
+	if err := <-mErr; err != nil {
 		*res = 1
 		return err
 	}

@@ -1,7 +1,9 @@
 package monitor
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 	"github.com/rafaelmartins/simplevirt/pkg/netdev"
@@ -14,10 +16,10 @@ type NIC struct {
 	iface  *net.Interface
 }
 
-func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
+func newNICs(vm string, config *qemu.VirtualMachine) ([]*NIC, error) {
 	nics := []*NIC{}
 
-	var err error
+	errs := []string{}
 	for i, nic := range config.NICs {
 		if nic.Bridge == "" {
 			continue
@@ -27,13 +29,15 @@ func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
 
 		tap, err := netdev.CreateQtap(config.RunAs)
 		if err != nil {
-			logutils.LogError(err)
+			errs = append(errs, logutils.LogError(err).Error())
 			break
 		}
 
-		if err = netdev.AddDevToBridge(nic.Bridge, tap); err != nil {
-			netdev.DestroyQtap(tap)
-			logutils.LogError(err)
+		if err := netdev.AddDevToBridge(nic.Bridge, tap); err != nil {
+			errs = append(errs, logutils.LogError(err).Error())
+			if err2 := netdev.DestroyQtap(tap); err2 != nil {
+				errs = append(errs, logutils.LogError(err2).Error())
+			}
 			break
 		}
 
@@ -43,31 +47,47 @@ func newNICs(vm string, config *qemu.VirtualMachine) []*NIC {
 		config.NICs[i].SetDevice(tap.Name)
 	}
 
-	if err != nil {
-		CleanupNICs(vm, nics)
-		return nil
+	if len(errs) > 0 {
+		if err2 := CleanupNICs(vm, nics); err2 != nil {
+			errs = append(errs, logutils.LogError(err2).Error())
+		}
+
+		return nil, fmt.Errorf(strings.Join(errs, "\n"))
 	}
 
-	return nics
+	return nics, nil
 }
 
-func (n *NIC) Cleanup(vm string) {
+func (n *NIC) Cleanup(vm string) error {
 	logutils.Notice.Printf("monitor: %s: %s: %s: cleanup", vm, n.Bridge, n.ID)
 
-	var err error
-	if err = netdev.RemoveDevFromBridge(n.Bridge, n.iface); err != nil {
-		logutils.LogError(err)
-	} else if err = netdev.DestroyQtap(n.iface); err != nil {
-		logutils.LogError(err)
+	errs := []string{}
+	if err := netdev.RemoveDevFromBridge(n.Bridge, n.iface); err != nil {
+		errs = append(errs, logutils.LogError(err).Error())
+	}
+	if err := netdev.DestroyQtap(n.iface); err != nil {
+		errs = append(errs, logutils.LogError(err).Error())
 	}
 
-	if err == nil {
+	if len(errs) > 0 {
 		logutils.Notice.Printf("monitor: %s: %s: %s: cleanup: done", vm, n.Bridge, n.ID)
+		return fmt.Errorf(strings.Join(errs, "\n"))
 	}
+
+	return nil
 }
 
-func CleanupNICs(vm string, nics []*NIC) {
+func CleanupNICs(vm string, nics []*NIC) error {
+	errs := []string{}
 	for _, nic := range nics {
-		nic.Cleanup(vm)
+		if err := nic.Cleanup(vm); err != nil {
+			errs = append(errs, err.Error())
+		}
 	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(strings.Join(errs, "\n"))
+	}
+
+	return nil
 }
