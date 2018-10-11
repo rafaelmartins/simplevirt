@@ -206,9 +206,17 @@ func (i *Instance) Start() error {
 	}
 
 	if err := qemu.Run(i.Config); err != nil {
-		i.retries++
 		logutils.Warning.Printf("monitor: %s: start: failed", i.Name)
-		return logutils.LogError(err)
+		logutils.LogError(err)
+		if i.retries == 0 {
+			msg := fmt.Sprintf("monitor: %s: start: failed: will retry %d times ...",
+				i.Name, i.Config.MaximumRetries)
+			logutils.Warning.Printf(msg)
+			i.retries++
+			return fmt.Errorf("%s\n%s", err, msg)
+		}
+		i.retries++
+		return err
 	} else {
 		logutils.Warning.Printf("monitor: %s: start: done", i.Name)
 	}
