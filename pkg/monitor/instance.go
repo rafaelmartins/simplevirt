@@ -263,7 +263,9 @@ func (i *Instance) shutdown() error {
 		logutils.Notice.Printf("monitor: %s: sending SIGKILL", i.Name)
 
 		// if process is running, our cached PID is valid
-		syscall.Kill(i.pid, syscall.SIGKILL)
+		if err := syscall.Kill(i.pid, syscall.SIGKILL); err != nil {
+			return err
+		}
 	}
 
 	logutils.Notice.Printf("monitor: %s: waiting for process to exit", i.Name)
