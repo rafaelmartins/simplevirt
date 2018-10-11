@@ -49,9 +49,6 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 				case Shutdown:
 					err = instance.Shutdown()
 
-				case Restart:
-					err = instance.Restart()
-
 				case Reset:
 					err = instance.Reset()
 				}
@@ -200,25 +197,6 @@ func (m *Monitor) Shutdown(name string, result chan error) error {
 	instance.opMutex.Lock()
 	defer instance.opMutex.Unlock()
 	instance.op = Shutdown
-	instance.opResult = result
-
-	return nil
-}
-
-func (m *Monitor) Restart(name string, result chan error) error {
-	logutils.Notice.Printf("monitor: requesting restart: %s", name)
-
-	m.instancesMutex.RLock()
-	defer m.instancesMutex.RUnlock()
-
-	instance := m.Get(name)
-	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
-	}
-
-	instance.opMutex.Lock()
-	defer instance.opMutex.Unlock()
-	instance.op = Restart
 	instance.opResult = result
 
 	return nil

@@ -20,7 +20,6 @@ type Operation int
 const (
 	Start Operation = iota
 	Shutdown
-	Restart
 	Reset
 )
 
@@ -44,9 +43,21 @@ func newInstance(monitor *Monitor, name string, result chan error) (*Instance, e
 		return nil, fmt.Errorf("monitor: %s: invalid monitor", name)
 	}
 
+	config, err := qemu.ParseConfig(monitor.ConfigDir, name)
+	if err != nil {
+		return nil, err
+	}
+
+	nics, err := newNICs(name, config)
+	if err != nil {
+		return nil, err
+	}
+
 	inst := Instance{
 		monitor:  monitor,
+		Config:   config,
 		Name:     name,
+		NICs:     nics,
 		pid:      -1,
 		retries:  0,
 		op:       Start,
@@ -54,29 +65,11 @@ func newInstance(monitor *Monitor, name string, result chan error) (*Instance, e
 		opResult: result,
 	}
 
-	if err := inst.readConfig(); err != nil {
-		return nil, err
-	}
+	inst.Config.SetName(inst.Name)
+	inst.Config.SetQMP(inst.QMPSocket())
+	inst.Config.SetPIDFile(inst.PIDFile())
 
 	return &inst, nil
-}
-
-func (i *Instance) readConfig() error {
-	var err error
-	if i.Config, err = qemu.ParseConfig(i.monitor.ConfigDir, i.Name); err != nil {
-		return err
-	}
-
-	i.NICs, err = newNICs(i.Name, i.Config)
-	if i.NICs == nil {
-		return err
-	}
-
-	i.Config.SetName(i.Name)
-	i.Config.SetQMP(i.QMPSocket())
-	i.Config.SetPIDFile(i.PIDFile())
-
-	return nil
 }
 
 func (i *Instance) PIDFile() string {
@@ -295,33 +288,6 @@ func (i *Instance) Shutdown() error {
 	}
 
 	delete(i.monitor.instances, i.Name)
-
-	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
-
-	return nil
-}
-
-func (i *Instance) Restart() error {
-	i.opMutex.RLock()
-	defer i.opMutex.RUnlock()
-
-	logutils.Warning.Printf("monitor: %s: restart (shutdown + start)", i.Name)
-	logutils.Warning.Printf("monitor: %s: shutdown", i.Name)
-
-	if err := i.shutdown(); err != nil {
-		return err
-	}
-
-	if err := i.readConfig(); err != nil {
-		i.monitor.instancesMutex.Lock()
-		defer i.monitor.instancesMutex.Unlock()
-
-		delete(i.monitor.instances, i.Name)
-
-		return logutils.LogError(err)
-	}
-
-	i.op = Start
 
 	logutils.Warning.Printf("monitor: %s: shutdown: done", i.Name)
 

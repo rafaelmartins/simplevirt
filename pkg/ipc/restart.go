@@ -17,7 +17,17 @@ func (h *Handler) RestartVM(args []string, res *int) error {
 
 	mErr := make(chan error)
 
-	if err := h.monitor.Restart(args[0], mErr); err != nil {
+	if err := h.monitor.Shutdown(args[0], mErr); err != nil {
+		*res = 1
+		return err
+	}
+
+	if err := <-mErr; err != nil {
+		*res = 1
+		return err
+	}
+
+	if err := h.monitor.Start(args[0], mErr); err != nil {
 		*res = 1
 		return err
 	}
