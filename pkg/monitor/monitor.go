@@ -56,8 +56,18 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 				if instance.opResult != nil {
 					select {
 					case instance.opResult <- err:
+					default:
+						if err != nil {
+							logutils.LogError(err)
+						}
 					}
 					instance.opResult = nil
+
+					continue
+				}
+
+				if err != nil {
+					logutils.LogError(err)
 				}
 			}
 
@@ -74,6 +84,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 	if err != nil {
 		logutils.LogError(err)
 		mon.Cleanup()
+		return nil
 	}
 
 	for _, vmName := range vms {
@@ -133,7 +144,7 @@ func (m *Monitor) Running(name string) bool {
 func (m *Monitor) List() ([]string, error) {
 	conf, err := qemu.ListConfigs(m.ConfigDir)
 	if err != nil {
-		return nil, logutils.LogError(err)
+		return nil, err
 	}
 
 	rv := append([]string{}, conf...)
@@ -165,7 +176,7 @@ func (m *Monitor) Start(name string, result chan error) error {
 
 	if instance != nil {
 		if running := instance.Running(); running {
-			return logutils.LogWarning(fmt.Errorf("monitor: %s: already running", name))
+			return fmt.Errorf("monitor: %s: already running", name)
 		}
 	} else {
 		m.instancesMutex.Lock()
@@ -174,7 +185,7 @@ func (m *Monitor) Start(name string, result chan error) error {
 		var err error
 		instance, err = newInstance(m, name, result)
 		if err != nil {
-			return logutils.LogError(err)
+			return err
 		}
 
 		m.instances[name] = instance
@@ -191,7 +202,7 @@ func (m *Monitor) Shutdown(name string, result chan error) error {
 
 	instance := m.Get(name)
 	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
+		return fmt.Errorf("monitor: %q not running", name)
 	}
 
 	instance.opMutex.Lock()
@@ -210,7 +221,7 @@ func (m *Monitor) Reset(name string, result chan error) error {
 
 	instance := m.Get(name)
 	if instance == nil {
-		return logutils.LogWarning(fmt.Errorf("monitor: %q not running", name))
+		return fmt.Errorf("monitor: %q not running", name)
 	}
 
 	instance.opMutex.Lock()

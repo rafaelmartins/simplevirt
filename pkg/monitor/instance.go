@@ -138,12 +138,12 @@ func (i *Instance) ProcessRunning() bool {
 func (i *Instance) QMPStatus() (string, error) {
 	qmp, err := i.QMP()
 	if err != nil {
-		return "exited", logutils.LogError(err)
+		return "exited", err
 	}
 
 	status, err := qmp.QueryStatus()
 	if err != nil {
-		return "exited", logutils.LogError(err)
+		return "exited", err
 	}
 
 	return status.Status, nil
@@ -152,19 +152,20 @@ func (i *Instance) QMPStatus() (string, error) {
 func (i *Instance) QMPRunning() (bool, error) {
 	qmp, err := i.QMP()
 	if err != nil {
-		return false, logutils.LogError(err)
+		return false, err
 	}
 
 	status, err := qmp.QueryStatus()
 	if err != nil {
-		return false, logutils.LogError(err)
+		return false, err
 	}
 
 	return status.Running, nil
 }
 
 func (i *Instance) Status() string {
-	status, _ := i.QMPStatus()
+	status, err := i.QMPStatus()
+	logutils.LogError(err)
 	return status
 }
 
@@ -174,6 +175,7 @@ func (i *Instance) Running() bool {
 	}
 
 	if ok, err := i.QMPRunning(); err != nil || !ok {
+		logutils.LogError(err)
 		return false
 	}
 
@@ -192,9 +194,8 @@ func (i *Instance) Start() error {
 		if err := i.Shutdown(); err != nil {
 			return err
 		}
-		return logutils.LogError(
-			fmt.Errorf("monitor: %s: maximum number of retries exceeded (%d)",
-				i.Name, i.Config.MaximumRetries))
+		return fmt.Errorf("monitor: %s: maximum number of retries exceeded (%d)",
+			i.Name, i.Config.MaximumRetries)
 	}
 
 	defer i.opMutex.RUnlock()
@@ -207,15 +208,11 @@ func (i *Instance) Start() error {
 
 	if err := qemu.Run(i.Config); err != nil {
 		logutils.Warning.Printf("monitor: %s: start: failed", i.Name)
-		logutils.LogError(err)
+		defer func() { i.retries++ }()
 		if i.retries == 0 {
-			msg := fmt.Sprintf("monitor: %s: start: failed: will retry %d times ...",
-				i.Name, i.Config.MaximumRetries)
-			logutils.Warning.Printf(msg)
-			i.retries++
-			return fmt.Errorf("%s\n%s", err, msg)
+			return fmt.Errorf("%s\nmonitor: %s: start: failed: will retry %d times ...",
+				err, i.Name, i.Config.MaximumRetries)
 		}
-		i.retries++
 		return err
 	} else {
 		logutils.Warning.Printf("monitor: %s: start: done", i.Name)
@@ -236,11 +233,11 @@ func (i *Instance) Reset() error {
 
 	qmp, err := i.QMP()
 	if err != nil {
-		return logutils.LogError(err)
+		return err
 	}
 
 	if err := qmp.Reset(); err != nil {
-		return logutils.LogError(err)
+		return err
 	}
 
 	i.op = Start

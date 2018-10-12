@@ -29,15 +29,17 @@ func newNICs(vm string, config *qemu.VirtualMachine) ([]*NIC, error) {
 
 		tap, err := netdev.CreateQtap(config.RunAs)
 		if err != nil {
-			errs = append(errs, logutils.LogError(err).Error())
+			errs = append(errs, err.Error())
+			logutils.Error.Printf("monitor: %s: %s: %s: failed", vm, nic.Bridge, tap.Name)
 			break
 		}
 
 		if err := netdev.AddDevToBridge(nic.Bridge, tap); err != nil {
-			errs = append(errs, logutils.LogError(err).Error())
+			errs = append(errs, err.Error())
 			if err2 := netdev.DestroyQtap(tap); err2 != nil {
-				errs = append(errs, logutils.LogError(err2).Error())
+				errs = append(errs, err2.Error())
 			}
+			logutils.Error.Printf("monitor: %s: %s: %s: failed", vm, nic.Bridge, tap.Name)
 			break
 		}
 
@@ -49,7 +51,7 @@ func newNICs(vm string, config *qemu.VirtualMachine) ([]*NIC, error) {
 
 	if len(errs) > 0 {
 		if err2 := CleanupNICs(vm, nics); err2 != nil {
-			errs = append(errs, logutils.LogError(err2).Error())
+			errs = append(errs, err2.Error())
 		}
 
 		return nil, fmt.Errorf(strings.Join(errs, "\n"))
@@ -63,15 +65,17 @@ func (n *NIC) Cleanup(vm string) error {
 
 	errs := []string{}
 	if err := netdev.RemoveDevFromBridge(n.Bridge, n.iface); err != nil {
-		errs = append(errs, logutils.LogError(err).Error())
+		errs = append(errs, err.Error())
 	}
 	if err := netdev.DestroyQtap(n.iface); err != nil {
-		errs = append(errs, logutils.LogError(err).Error())
+		errs = append(errs, err.Error())
 	}
 
 	if len(errs) > 0 {
-		logutils.Notice.Printf("monitor: %s: %s: %s: cleanup: done", vm, n.Bridge, n.ID)
+		logutils.Notice.Printf("monitor: %s: %s: %s: cleanup: failed", vm, n.Bridge, n.ID)
 		return fmt.Errorf(strings.Join(errs, "\n"))
+	} else {
+		logutils.Notice.Printf("monitor: %s: %s: %s: cleanup: done", vm, n.Bridge, n.ID)
 	}
 
 	return nil

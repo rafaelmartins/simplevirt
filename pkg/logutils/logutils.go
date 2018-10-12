@@ -59,30 +59,13 @@ func SetLevel(level string) error {
 	return nil
 }
 
-func LogCrit(err error) error {
-	if err != nil {
-		Crit.Println(err)
-	}
-	return err
-}
-
-func LogError(err error) error {
+func LogError(err error) {
 	if err != nil {
 		Error.Println(err)
 	}
-	return err
 }
 
-func LogWarning(err error) error {
-	if err != nil {
-		Warning.Println(err)
-	}
-	return err
-}
-
-func LogNotice(err error) error {
-	if err != nil {
-		Notice.Println(err)
-	}
+func LogErrorR(err error) error {
+	LogError(err)
 	return err
 }

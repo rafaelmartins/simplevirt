@@ -9,7 +9,7 @@ func (h *Handler) ListVMs(_ struct{}, res *[]string) error {
 
 	vms, err := h.monitor.List()
 	if err != nil {
-		return err
+		return logutils.LogErrorR(err)
 	}
 	*res = vms
 	return nil

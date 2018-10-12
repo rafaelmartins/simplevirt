@@ -19,22 +19,22 @@ func (h *Handler) RestartVM(args []string, res *int) error {
 
 	if err := h.monitor.Shutdown(args[0], mErr); err != nil {
 		*res = 1
-		return err
+		return logutils.LogErrorR(err)
 	}
 
 	if err := <-mErr; err != nil {
 		*res = 1
-		return err
+		return logutils.LogErrorR(err)
 	}
 
 	if err := h.monitor.Start(args[0], mErr); err != nil {
 		*res = 1
-		return err
+		return logutils.LogErrorR(err)
 	}
 
 	if err := <-mErr; err != nil {
 		*res = 1
-		return err
+		return logutils.LogErrorR(err)
 	}
 
 	return nil

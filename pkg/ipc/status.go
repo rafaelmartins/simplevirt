@@ -15,7 +15,7 @@ func (h *Handler) GetVMStatus(args []string, res *string) error {
 
 	vms, err := h.monitor.List()
 	if err != nil {
-		return err
+		return logutils.LogErrorR(err)
 	}
 
 	for _, vm := range vms {
