@@ -33,9 +33,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 	go func() {
 		for {
 			for name, _ := range mon.instances {
-				mon.instancesMutex.RLock()
 				instance := mon.Get(name)
-				mon.instancesMutex.RUnlock()
 				if instance == nil {
 					continue
 				}
@@ -116,6 +114,9 @@ func (m *Monitor) Cleanup() {
 }
 
 func (m *Monitor) Get(name string) *Instance {
+	m.instancesMutex.RLock()
+	defer m.instancesMutex.RUnlock()
+
 	if instance, ok := m.instances[name]; ok {
 		return instance
 	}
@@ -170,10 +171,7 @@ func (m *Monitor) List() ([]string, error) {
 func (m *Monitor) Start(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting start: %s", name)
 
-	m.instancesMutex.RLock()
 	instance := m.Get(name)
-	m.instancesMutex.RUnlock()
-
 	if instance != nil {
 		if running := instance.Running(); running {
 			return fmt.Errorf("monitor: %s: already running", name)
@@ -197,9 +195,6 @@ func (m *Monitor) Start(name string, result chan error) error {
 func (m *Monitor) Shutdown(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting shutdown: %s", name)
 
-	m.instancesMutex.RLock()
-	defer m.instancesMutex.RUnlock()
-
 	instance := m.Get(name)
 	if instance == nil {
 		return fmt.Errorf("monitor: %q not running", name)
@@ -215,9 +210,6 @@ func (m *Monitor) Shutdown(name string, result chan error) error {
 
 func (m *Monitor) Reset(name string, result chan error) error {
 	logutils.Notice.Printf("monitor: requesting reset: %s", name)
-
-	m.instancesMutex.RLock()
-	defer m.instancesMutex.RUnlock()
 
 	instance := m.Get(name)
 	if instance == nil {
