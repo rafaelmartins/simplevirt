@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/rafaelmartins/simplevirt/pkg/logutils"
 
@@ -76,13 +77,34 @@ func ListConfigs(configDir string) ([]string, error) {
 	return rv, nil
 }
 
+func findBinary(config *VirtualMachine) string {
+	// FIXME: support more arches?
+	if config.SystemTarget == "x86_64" && runtime.GOARCH == "amd64" {
+
+		// centos/rhel installs the qemu-kvm binary to /usr/libexec
+		path := os.Getenv("PATH")
+		npath := "/usr/libexec"
+		if path != "" {
+			npath += string(os.PathListSeparator) + path
+		}
+		os.Setenv("PATH", npath)
+		defer os.Setenv("PATH", path)
+
+		if bpath, err := exec.LookPath("qemu-kvm"); err == nil {
+			return bpath
+		}
+	}
+
+	return fmt.Sprintf("qemu-system-%s", config.SystemTarget)
+}
+
 func Run(config *VirtualMachine) error {
 	args, err := buildCmdVirtualMachine(config)
 	if err != nil {
 		return err
 	}
 
-	bin := fmt.Sprintf("qemu-system-%s", config.SystemTarget)
+	bin := findBinary(config)
 
 	logutils.Notice.Printf("qemu: %s: calling %q with arguments: %q", config.name, bin, args)
 
