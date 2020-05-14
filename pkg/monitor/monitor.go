@@ -20,7 +20,7 @@ type Monitor struct {
 	exitChan       chan bool
 }
 
-func NewMonitor(configDir string, runtimeDir string) *Monitor {
+func NewMonitor(configDir string, runtimeDir string) (*Monitor, error) {
 	mon := Monitor{
 		ConfigDir:      configDir,
 		RuntimeDir:     runtimeDir,
@@ -80,9 +80,8 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 
 	vms, err := qemu.ListConfigs(configDir)
 	if err != nil {
-		logutils.LogError(err)
 		mon.Cleanup()
-		return nil
+		return nil, err
 	}
 
 	for _, vmName := range vms {
@@ -97,7 +96,7 @@ func NewMonitor(configDir string, runtimeDir string) *Monitor {
 		}
 	}
 
-	return &mon
+	return &mon, nil
 }
 
 func (m *Monitor) Cleanup() {

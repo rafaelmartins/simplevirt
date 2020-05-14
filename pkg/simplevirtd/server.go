@@ -38,7 +38,10 @@ func listenAndServe() error {
 		return err
 	}
 
-	mon := ipc.RegisterHandlers(configDir, runtimeDir)
+	mon, err := ipc.RegisterHandlers(configDir, runtimeDir)
+	if err != nil {
+		return err
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, os.Kill, syscall.SIGTERM)
