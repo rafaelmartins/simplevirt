@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/rafaelmartins/simplevirt/pkg/simplevirtd"
+	"github.com/rafaelmartins/simplevirt/internal/simplevirtd"
 )
 
 func main() {

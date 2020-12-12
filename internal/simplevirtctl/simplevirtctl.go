@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rafaelmartins/simplevirt"
+	"github.com/rafaelmartins/simplevirt/internal/version"
 )
 
 var (
@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 	Use:          "simplevirtctl",
 	Short:        "Simple virtual machine manager for Linux (QEMU/KVM) - Controller",
 	Long:         "Simple virtual machine manager for Linux (QEMU/KVM) - Controller",
-	Version:      simplevirt.Version,
+	Version:      version.Version,
 	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if socket == "" {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/rpc"
 
-	"github.com/rafaelmartins/simplevirt/pkg/ipc"
+	"github.com/rafaelmartins/simplevirt/internal/ipc"
 )
 
 type Client struct {

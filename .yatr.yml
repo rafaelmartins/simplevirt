@@ -1,8 +1,8 @@
 targets:
     distcheck:
         task_args:
-            - ./pkg/...
+            - ./internal/...
     dist-linux-amd64:
         task_args:
             - -ldflags
-            - "-X github.com/rafaelmartins/simplevirt.Version={{.Version}}"
+            - "-X github.com/rafaelmartins/simplevirt/internal/version.Version={{.Version}}"

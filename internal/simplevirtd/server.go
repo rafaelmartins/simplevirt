@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/rafaelmartins/simplevirt/pkg/ipc"
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/ipc"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
 )
 
 func listenAndServe() error {

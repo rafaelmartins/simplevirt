@@ -3,7 +3,7 @@ package ipc
 import (
 	"net/rpc"
 
-	"github.com/rafaelmartins/simplevirt/pkg/monitor"
+	"github.com/rafaelmartins/simplevirt/internal/monitor"
 )
 
 var (

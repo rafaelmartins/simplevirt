@@ -1,7 +1,7 @@
 package ipc
 
 import (
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
 )
 
 func (h *Handler) ListVMs(_ struct{}, res *[]string) error {

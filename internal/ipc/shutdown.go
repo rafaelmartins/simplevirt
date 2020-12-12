@@ -3,7 +3,7 @@ package ipc
 import (
 	"fmt"
 
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
 )
 
 func (h *Handler) ShutdownVM(args []string, res *int) error {

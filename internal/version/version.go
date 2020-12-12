@@ -1,4 +1,4 @@
-package simplevirt
+package version
 
 var (
 	Version = "git"

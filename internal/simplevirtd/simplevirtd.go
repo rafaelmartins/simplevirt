@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rafaelmartins/simplevirt"
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/version"
 )
 
 var (
@@ -32,7 +32,7 @@ var cmd = &cobra.Command{
 	Use:          "simplevirtd",
 	Short:        "Simple virtual machine manager for Linux (QEMU/KVM) - Daemon",
 	Long:         "Simple virtual machine manager for Linux (QEMU/KVM) - Daemon",
-	Version:      simplevirt.Version,
+	Version:      version.Version,
 	SilenceUsage: true,
 	Run: func(cmd *cobra.Command, args []string) {
 		if syslogF {
@@ -48,7 +48,7 @@ var cmd = &cobra.Command{
 			}
 		}
 
-		logutils.Notice.Printf("starting simplevirtd %s\n", simplevirt.Version)
+		logutils.Notice.Printf("starting simplevirtd %s\n", version.Version)
 
 		u, err := user.Lookup("root")
 		if err != nil {

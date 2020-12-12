@@ -3,7 +3,7 @@ package qemu
 import (
 	"testing"
 
-	. "github.com/rafaelmartins/simplevirt/pkg/testutils"
+	. "github.com/rafaelmartins/simplevirt/internal/testutils"
 )
 
 var (

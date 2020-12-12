@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
 
 	"gopkg.in/yaml.v2"
 )

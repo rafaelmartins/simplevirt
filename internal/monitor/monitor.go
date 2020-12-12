@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rafaelmartins/simplevirt/pkg/logutils"
-	"github.com/rafaelmartins/simplevirt/pkg/qemu"
+	"github.com/rafaelmartins/simplevirt/internal/logutils"
+	"github.com/rafaelmartins/simplevirt/internal/qemu"
 )
 
 type Monitor struct {
